@@ -3,1113 +3,1018 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Танчики 3D Онлайн + Боты</title>
-    <!-- PeerJS для мультиплеера -->
+    <title>Web of Tanks 3D</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <!-- Three.js для 3D графики -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #0d0d0d;
-            color: #ffffff;
-            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            overflow: hidden;
-            touch-action: none;
+            margin: 0; padding: 0; background: #0a0c0e; color: #eaeaea;
+            font-family: 'Segoe UI', Tahoma, sans-serif; overflow: hidden; touch-action: none;
         }
-        /* Меню */
-        #menu {
-            background: #1a1a1a;
-            padding: 22px;
-            border-radius: 16px;
-            box-shadow: 0 12px 35px rgba(0,0,0,0.9);
-            text-align: center;
-            max-width: 420px;
-            width: 92%;
-            border: 1px solid #333;
-            z-index: 20;
+
+        /* АНГАР (МЕНЮ) */
+        #hangar {
+            position: fixed; inset: 0;
+            background: radial-gradient(circle at center, #1f242d 0%, #0d0f12 100%);
+            display: flex; align-items: center; justify-content: center; z-index: 100; padding: 15px;
         }
-        h1 { margin: 0 0 12px 0; color: #4CAF50; font-size: 26px; text-transform: uppercase; letter-spacing: 1px; }
-        .input-group { margin-bottom: 12px; text-align: left; }
-        .input-group label { display: block; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+        .hangar-box {
+            background: rgba(20, 24, 30, 0.95); border: 1px solid #3a414d;
+            border-radius: 12px; padding: 20px; max-width: 500px; width: 100%;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.9); text-align: center;
+        }
+        h1 { margin: 0 0 15px 0; color: #ff6d00; font-size: 26px; letter-spacing: 2px; text-transform: uppercase; }
+        .row { display: flex; gap: 10px; margin-bottom: 12px; }
         input, select {
-            padding: 11px;
-            font-size: 15px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            background: #111;
-            color: white;
-            width: 100%;
-            text-align: center;
-            outline: none;
+            width: 100%; padding: 10px; background: #111418; border: 1px solid #3a414d;
+            color: #fff; border-radius: 6px; font-size: 14px; text-align: center; outline: none;
         }
-        input:focus, select:focus { border-color: #4CAF50; }
-        #join-id { text-transform: uppercase; font-weight: bold; letter-spacing: 2px; }
+        input:focus { border-color: #ff6d00; }
+
+        /* Карточки выбора класса танка */
+        .class-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+        .class-card {
+            background: #161a20; border: 2px solid #2c323b; border-radius: 8px;
+            padding: 10px 6px; cursor: pointer; transition: 0.2s;
+        }
+        .class-card.active { border-color: #ff6d00; background: rgba(255, 109, 0, 0.12); }
+        .class-title { font-weight: bold; font-size: 14px; color: #ff9e40; margin-bottom: 4px; }
+        .class-stats { font-size: 11px; color: #9aa5b1; line-height: 1.4; }
+
+        .btn {
+            width: 100%; padding: 13px; border: none; border-radius: 6px;
+            font-size: 15px; font-weight: bold; text-transform: uppercase;
+            cursor: pointer; margin-bottom: 8px; transition: 0.15s;
+        }
+        .btn-battle { background: linear-gradient(180deg, #ff6d00, #d84315); color: white; box-shadow: 0 4px 15px rgba(255,109,0,0.35); }
+        .btn-host { background: #388e3c; color: white; }
+        .btn-join { background: #1976d2; color: white; }
+        .btn:active { transform: scale(0.98); }
+        #net-status { font-size: 13px; color: #ffd54f; margin-top: 6px; min-height: 18px; }
+
+        /* БОЕВОЙ ИНТЕРФЕЙС (HUD) */
+        #battle-ui { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 10; }
         
-        .bot-selector {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: #252525;
-            padding: 10px 14px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            border: 1px solid #383838;
-        }
-        .bot-selector span { font-size: 14px; font-weight: bold; color: #ff9800; }
-        .bot-selector select { width: 140px; padding: 6px; font-weight: bold; }
-
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px;
-            margin: 5px 0;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: bold;
-            width: 100%;
-            transition: transform 0.1s, background 0.2s;
-        }
-        button:active { transform: scale(0.98); }
-        button.solo-btn { background: #ff9800; color: #111; }
-        button.secondary { background: #2196F3; }
-        .divider { margin: 10px 0; color: #666; font-size: 11px; text-transform: uppercase; }
-        #status { margin-top: 10px; color: #ffeb3b; font-size: 13px; min-height: 18px; word-break: break-word; }
-
-        /* Игровой контейнер */
-        #game-container {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            width: 100%;
-            height: 100vh;
-            padding-top: 6px;
-        }
-        #hud {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            align-items: center;
-            width: 96%;
-            max-width: 900px;
-            background: #1a1a1a;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin-bottom: 6px;
-            font-size: 14px;
-            font-weight: bold;
-            border: 1px solid #333;
-            gap: 8px;
-            z-index: 10;
-        }
-        .score-badge { padding: 3px 8px; border-radius: 4px; background: #262626; }
-
-        /* 3D Сцена и плавающие имена */
-        #canvas-wrapper {
-            position: relative;
-            width: 96%;
-            max-width: 900px;
-            aspect-ratio: 4 / 3;
-            max-height: 62vh;
-            border: 3px solid #3a3a3a;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 0 30px rgba(0,0,0,0.9);
-            background: #111;
-        }
-        #canvas-wrapper canvas {
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-        }
-        #labels-container {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none;
-            overflow: hidden;
-        }
-        .tank-label {
-            position: absolute;
-            transform: translate(-50%, -100%);
-            text-align: center;
-            white-space: nowrap;
-            transition: opacity 0.1s;
-        }
-        .tank-label .name {
-            font-size: 12px;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 0 1px 3px #000, 0 0 5px #000;
-            margin-bottom: 2px;
-        }
-        .tank-label .hp-bg {
-            width: 42px;
-            height: 5px;
-            background: rgba(0,0,0,0.7);
-            border: 1px solid #000;
-            border-radius: 3px;
-            margin: 0 auto;
-            overflow: hidden;
-        }
-        .tank-label .hp-fill {
-            height: 100%;
-            background: #4CAF50;
-            width: 100%;
+        /* Верхняя панель счета */
+        #top-bar {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 18, 22, 0.85); border: 1px solid #333;
+            padding: 6px 16px; border-radius: 6px; display: flex; gap: 15px;
+            font-size: 13px; font-weight: bold; white-space: nowrap;
         }
 
-        /* Мобильный геймпад */
-        #mobile-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 95%;
-            max-width: 850px;
-            margin-top: auto;
-            margin-bottom: 12px;
-            padding: 4px 10px;
-            z-index: 10;
+        /* Центральный прицел и сведение */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 44px; height: 44px; border: 2px dashed rgba(76, 175, 80, 0.85);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
         }
-        .d-pad {
-            display: grid;
-            grid-template-columns: repeat(3, 54px);
-            grid-template-rows: repeat(2, 54px);
-            gap: 6px;
+        #crosshair::after {
+            content: ''; width: 4px; height: 4px; background: #00e676; border-radius: 50%;
         }
-        .ctrl-btn {
-            background: rgba(255, 255, 255, 0.12);
-            border: 2px solid rgba(255, 255, 255, 0.25);
-            color: white;
-            border-radius: 12px;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+        #reload-timer {
+            position: absolute; top: calc(50% + 28px); left: 50%; transform: translateX(-50%);
+            font-size: 14px; font-weight: bold; color: #00e676; text-shadow: 0 1px 3px #000;
         }
-        .ctrl-btn.active {
-            background: rgba(76, 175, 80, 0.55);
-            border-color: #4CAF50;
-            transform: scale(0.93);
+
+        /* Снайперский прицел (Затемнение по краям) */
+        #sniper-overlay {
+            display: none; position: absolute; inset: 0;
+            background: radial-gradient(circle, transparent 35%, rgba(0, 15, 5, 0.92) 70%);
+            border: 2px solid rgba(0, 230, 118, 0.3);
         }
-        .fire-btn {
-            width: 86px;
-            height: 86px;
-            border-radius: 50%;
-            background: rgba(244, 67, 54, 0.4);
-            border: 3px solid #f44336;
-            font-size: 16px;
-            font-weight: bold;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.35);
+        #sniper-lines {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 300px; height: 300px; border: 1px solid rgba(0, 255, 100, 0.35); border-radius: 50%;
         }
-        .fire-btn.active {
-            background: rgba(244, 67, 54, 0.85);
-            transform: scale(0.92);
+
+        /* Лог пробитий / рикошетов */
+        #hit-ribbon {
+            position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
         }
-        .pc-hint { font-size: 12px; color: #777; margin-top: 4px; }
-        @media (min-width: 850px) and (pointer: fine) {
-            #canvas-wrapper { max-height: 74vh; }
+        .ribbon-msg {
+            padding: 5px 14px; border-radius: 4px; font-weight: bold; font-size: 15px;
+            text-shadow: 0 1px 2px #000; animation: fadeUp 1.8s forwards;
+        }
+        @keyframes fadeUp {
+            0% { opacity: 1; transform: translateY(0) scale(1.1); }
+            80% { opacity: 1; transform: translateY(-15px) scale(1); }
+            100% { opacity: 0; transform: translateY(-25px) scale(0.95); }
+        }
+
+        /* Панель состояния своего танка (левый нижний угол) */
+        #tank-status {
+            position: absolute; bottom: 15px; left: 15px;
+            background: rgba(15, 18, 22, 0.85); border: 1px solid #3a414d;
+            padding: 10px 14px; border-radius: 8px; width: 210px;
+        }
+        .hp-bar-wrap { width: 100%; height: 14px; background: #222; border-radius: 4px; overflow: hidden; margin: 6px 0; border: 1px solid #000; }
+        #my-hp-fill { height: 100%; background: #4caf50; width: 100%; transition: width 0.2s; }
+        .stat-line { display: flex; justify-content: space-between; font-size: 12px; color: #bbb; }
+
+        /* Миникарта (правый нижний угол на ПК, правый верхний на мобилках) */
+        #minimap {
+            position: absolute; bottom: 15px; right: 15px;
+            width: 135px; height: 135px; background: rgba(10, 15, 10, 0.85);
+            border: 2px solid #4a5568; border-radius: 6px;
+        }
+
+        /* Плавающие маркеры врагов в 3D */
+        #markers-layer { position: absolute; inset: 0; overflow: hidden; }
+        .enemy-marker {
+            position: absolute; transform: translate(-50%, -100%);
+            text-align: center; white-space: nowrap;
+        }
+        .enemy-marker .m-name { font-size: 11px; font-weight: bold; color: #ff5252; text-shadow: 0 1px 3px #000; }
+        .enemy-marker .m-hp { width: 46px; height: 5px; background: rgba(0,0,0,0.8); border: 1px solid #000; margin: 2px auto; }
+        .enemy-marker .m-hp-fill { height: 100%; background: #ff3d00; width: 100%; }
+
+        /* МОБИЛЬНОЕ УПРАВЛЕНИЕ */
+        #touch-controls {
+            display: none; position: fixed; inset: 0; pointer-events: none; z-index: 20;
+        }
+        /* Зона поворота башни пальцем (правая половина экрана) */
+        #aim-zone {
+            position: absolute; top: 0; right: 0; width: 55%; height: 100%;
+            pointer-events: auto;
+        }
+        .dpad {
+            position: absolute; bottom: 25px; left: 20px;
+            display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px);
+            gap: 6px; pointer-events: auto;
+        }
+        .t-btn {
+            background: rgba(255,255,255,0.14); border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px; color: #fff; font-size: 20px; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .t-btn.active { background: rgba(255, 109, 0, 0.55); border-color: #ff6d00; }
+        
+        #btn-mobile-fire {
+            position: absolute; bottom: 35px; right: 30px; width: 88px; height: 88px;
+            border-radius: 50%; background: rgba(216, 67, 21, 0.55); border: 3px solid #ff3d00;
+            color: #fff; font-weight: bold; font-size: 15px; display: flex;
+            align-items: center; justify-content: center; pointer-events: auto;
+        }
+        #btn-mobile-sniper {
+            position: absolute; bottom: 135px; right: 42px; width: 64px; height: 44px;
+            border-radius: 8px; background: rgba(0, 230, 118, 0.25); border: 2px solid #00e676;
+            color: #fff; font-weight: bold; font-size: 12px; display: flex;
+            align-items: center; justify-content: center; pointer-events: auto;
+        }
+
+        @media (pointer: coarse), (max-width: 850px) {
+            #touch-controls { display: block; }
+            #tank-status { top: 48px; left: 10px; bottom: auto; width: 165px; padding: 6px 10px; }
+            #minimap { top: 48px; right: 10px; bottom: auto; width: 105px; height: 105px; }
         }
     </style>
 </head>
 <body>
 
-    <!-- МЕНЮ -->
-    <div id="menu">
-        <h1>Танчики 3D</h1>
-        
-        <div class="input-group">
-            <label>Ваш игровой никнейм:</label>
-            <input type="text" id="player-name" placeholder="Введите имя..." maxlength="12" value="Танкист">
-        </div>
+    <!-- АНГАР -->
+    <div id="hangar">
+        <div class="hangar-box">
+            <h1>Web of Tanks 3D</h1>
+            
+            <div class="row">
+                <input type="text" id="player-name" value="Командир" maxlength="12" placeholder="Никнейм">
+                <select id="bot-count">
+                    <option value="0">Без ботов (0)</option>
+                    <option value="2">2 Бота</option>
+                    <option value="4" selected>4 Бота (Встречный бой)</option>
+                </select>
+            </div>
 
-        <div class="bot-selector">
-            <span>🤖 ИИ-Боты на карте:</span>
-            <select id="bot-count">
-                <option value="0">Без ботов (0)</option>
-                <option value="1" selected>1 Бот</option>
-                <option value="2">2 Бота</option>
-                <option value="3">3 Бота (Хаос)</option>
-            </select>
-        </div>
+            <div style="font-size:12px; color:#aaa; margin-bottom:6px; text-align:left;">Выберите класс техники:</div>
+            <div class="class-grid">
+                <div class="class-card" onclick="selectClass('LT', this)">
+                    <div class="class-title">ЛТ (Т-100)</div>
+                    <div class="class-stats">HP: 1100<br>Урон: 190<br>Броня: 60 мм<br>Скорость: 55 км/ч</div>
+                </div>
+                <div class="class-card active" onclick="selectClass('MT', this)">
+                    <div class="class-title">СТ (Об. 140)</div>
+                    <div class="class-stats">HP: 1550<br>Урон: 290<br>Броня: 110 мм<br>Скорость: 42 км/ч</div>
+                </div>
+                <div class="class-card" onclick="selectClass('HT', this)">
+                    <div class="class-title">ТТ (MAUS)</div>
+                    <div class="class-stats">HP: 2200<br>Урон: 420<br>Броня: 170 мм<br>Скорость: 27 км/ч</div>
+                </div>
+            </div>
 
-        <button class="solo-btn" onclick="startSoloGame()">Играть одному (с ботами)</button>
-        <button onclick="createGame()">Создать онлайн-комнату (Хост)</button>
-        
-        <div class="divider">— или подключиться к другу —</div>
-        
-        <input type="text" id="join-id" placeholder="КОД КОМНАТЫ">
-        <button class="secondary" onclick="joinGame()">Войти в комнату</button>
-        
-        <div id="status">Выберите режим игры</div>
+            <button class="btn btn-battle" onclick="startSoloBattle()">В БОЙ! (Одиночный с ботами)</button>
+            <button class="btn btn-host" onclick="hostOnlineBattle()">Создать роту (Играть с другом)</button>
+            
+            <div class="row" style="margin-top:8px; margin-bottom:0;">
+                <input type="text" id="join-code" placeholder="КОД ДРУГА" style="text-transform:uppercase; font-weight:bold;">
+                <button class="btn btn-join" style="margin:0;" onclick="joinOnlineBattle()">Войти</button>
+            </div>
+
+            <div id="net-status">Управление ПК: Клик по экрану (Мышь — башня, WASD — ход, Shift — Снайперский прицел)</div>
+        </div>
     </div>
 
-    <!-- ИГРА -->
-    <div id="game-container">
-        <div id="hud"></div>
+    <!-- БОЕВОЙ ИНТЕРФЕЙС -->
+    <div id="battle-ui">
+        <div id="sniper-overlay"><div id="sniper-lines"></div></div>
+        <div id="top-bar">Загрузка боя...</div>
+        <div id="hit-ribbon"></div>
+        <div id="crosshair"></div>
+        <div id="reload-timer">ГОТОВ</div>
+        <div id="markers-layer"></div>
 
-        <div id="canvas-wrapper">
-            <div id="labels-container"></div>
+        <div id="tank-status">
+            <div style="font-weight:bold; color:#ff9e40;" id="hud-tank-name">СТ (Об. 140)</div>
+            <div class="hp-bar-wrap"><div id="my-hp-fill"></div></div>
+            <div class="stat-line"><span id="hud-hp-text">1550 / 1550</span><span id="hud-speed">0 км/ч</span></div>
+            <div class="stat-line" style="margin-top:4px; font-size:11px; color:#888;">Лоб/Борт: <span id="hud-armor">110/75 мм</span></div>
         </div>
 
-        <div class="pc-hint">ПК: WASD / Стрелки + Пробел | Телефон: Сенсорные кнопки ниже</div>
+        <canvas id="minimap" width="135" height="135"></canvas>
+    </div>
 
-        <div id="mobile-controls">
-            <div class="d-pad">
-                <div></div>
-                <div class="ctrl-btn" id="btn-up">▲</div>
-                <div></div>
-                <div class="ctrl-btn" id="btn-left">◀</div>
-                <div class="ctrl-btn" id="btn-down">▼</div>
-                <div class="ctrl-btn" id="btn-right">▶</div>
-            </div>
-            <div class="fire-btn" id="btn-shoot">ОГОНЬ</div>
+    <!-- СЕНСОРНОЕ УПРАВЛЕНИЕ ДЛЯ ТЕЛЕФОНА -->
+    <div id="touch-controls">
+        <div id="aim-zone"></div>
+        <div class="dpad">
+            <div></div><div class="t-btn" id="t-up">▲</div><div></div>
+            <div class="t-btn" id="t-left">◀</div><div class="t-btn" id="t-down">▼</div><div class="t-btn" id="t-right">▶</div>
         </div>
+        <div id="btn-mobile-sniper" onclick="toggleSniper()">ПРИЦЕЛ</div>
+        <div id="btn-mobile-fire">ОГОНЬ</div>
     </div>
 
 <script>
-    const ARENA_W = 800;
-    const ARENA_H = 600;
-    const statusText = document.getElementById('status');
+    // --- ХАРАКТЕРИСТИКИ КЛАССОВ ТАНКОВ (КАК В WOT) ---
+    const TANK_SPECS = {
+        LT: {
+            label: "Т-100 ЛТ", maxHp: 1100, speed: 4.8, rotSpeed: 0.048, turretSpeed: 0.065,
+            reload: 155, dmg: 190, pen: 145, armor: { front: 65, side: 45, rear: 30 },
+            scale: { w: 28, h: 11, l: 40 }, color: 0x4caf50
+        },
+        MT: {
+            label: "Объект 140", maxHp: 1550, speed: 3.6, rotSpeed: 0.036, turretSpeed: 0.048,
+            reload: 230, dmg: 290, pen: 175, armor: { front: 115, side: 75, rear: 45 },
+            scale: { w: 34, h: 13, l: 48 }, color: 0x388e3c
+        },
+        HT: {
+            label: "MAUS ТТ", maxHp: 2200, speed: 2.3, rotSpeed: 0.024, turretSpeed: 0.030,
+            reload: 330, dmg: 420, pen: 205, armor: { front: 170, side: 115, rear: 65 },
+            scale: { w: 42, h: 17, l: 58 }, color: 0x546e7a
+        }
+    };
 
-    let peer = null;
-    let conn = null;
+    const MAP_SIZE = 2400; // Огромная карта 2400x2400
+    let selectedClass = 'MT';
+    let myTankId = 'p1';
     let isHost = false;
     let isSolo = false;
     let gameRunning = false;
-    let myTankId = 'p1';
+    let peer = null, conn = null;
 
-    const keys = { up: false, down: false, left: false, right: false, shoot: false };
-    let remoteKeys = { up: false, down: false, left: false, right: false, shoot: false };
-    let cooldowns = {};
-    let aiState = {};
-    let powerupTimer = 250;
+    // Камера и прицеливание
+    let camYaw = 0;
+    let camPitch = 0.25;
+    let sniperMode = false;
 
-    // Точки спавна по углам и краям карты
-    const SPAWN_POINTS = [
-        { x: 70,  y: 300, angle: 0 },
-        { x: 730, y: 300, angle: Math.PI },
-        { x: 400, y: 65,  angle: Math.PI / 2 },
-        { x: 400, y: 535, angle: -Math.PI / 2 },
-        { x: 70,  y: 70,  angle: Math.PI / 4 }
-    ];
+    // Ввод игрока
+    const myInput = { up: false, down: false, left: false, right: false, shoot: false, targetTurret: 0 };
+    let guestInput = { up: false, down: false, left: false, right: false, shoot: false, targetTurret: 0 };
 
-    // Глобальное состояние (синхронизируется по сети)
+    // Состояние мира
     let state = {
         tanks: [],
-        bullets: [],
-        walls: [],
-        powerups: [],
-        particles: []
+        shells: [],
+        obstacles: [],
+        events: [] // События для звуков и надписей ("РИКОШЕТ", "ПРОБИТИЕ")
     };
 
-    // --- ИНИЦИАЛИЗАЦИЯ КАРТЫ И ТАНКОВ ---
-    function initMap() {
-        state.walls = [];
-        const layout = [
-            { x: 380, y: 260, w: 40, h: 80, type: 2, hp: 999 },
-            { x: 160, y: 120, w: 40, h: 80, type: 2, hp: 999 },
-            { x: 160, y: 400, w: 40, h: 80, type: 2, hp: 999 },
-            { x: 600, y: 120, w: 40, h: 80, type: 2, hp: 999 },
-            { x: 600, y: 400, w: 40, h: 80, type: 2, hp: 999 },
-        ];
+    // --- ПРОЦЕДУРНЫЙ СИНТЕЗАТОР ЗВУКА (Web Audio API) ---
+    let audioCtx = null;
+    function playSound(type) {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
 
-        for (let y = 200; y < 400; y += 40) {
-            layout.push({ x: 160, y: y, w: 40, h: 40, type: 1, hp: 3 });
-            layout.push({ x: 600, y: y, w: 40, h: 40, type: 1, hp: 3 });
-        }
-        for (let x = 280; x <= 480; x += 40) {
-            if (x !== 380) {
-                layout.push({ x: x, y: 140, w: 40, h: 40, type: 1, hp: 3 });
-                layout.push({ x: x, y: 420, w: 40, h: 40, type: 1, hp: 3 });
+            if (type === 'shoot') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(28, now + 0.35);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc.start(now); osc.stop(now + 0.35);
+            } else if (type === 'ricochet') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(900, now);
+                osc.frequency.linearRampToValueAtTime(2200, now + 0.12);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.3);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'hit') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(90, now);
+                osc.frequency.exponentialRampToValueAtTime(20, now + 0.25);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now); osc.stop(now + 0.25);
             }
-        }
-        state.walls = layout;
-        state.powerups = [];
-        state.bullets = [];
+        } catch(e) {}
     }
 
-    function setupPlayers(hasGuest, botCount, hostName, guestName = "Гость") {
+    function showRibbon(text, bgColor) {
+        const container = document.getElementById('hit-ribbon');
+        const div = document.createElement('div');
+        div.className = 'ribbon-msg';
+        div.style.background = bgColor;
+        div.innerText = text;
+        container.appendChild(div);
+        setTimeout(() => div.remove(), 1800);
+    }
+
+    function selectClass(cls, el) {
+        selectedClass = cls;
+        document.querySelectorAll('.class-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    // --- ГЕНЕРАЦИЯ КАРТЫ И УКРЫТИЙ ---
+    function generateWorldMap() {
+        state.obstacles = [
+            // Центральная деревня / бункеры
+            { x: 0, z: 0, w: 120, d: 120, h: 75, type: 'bunker' },
+            { x: -320, z: -220, w: 140, d: 90, h: 65, type: 'house' },
+            { x: 320, z: 220, w: 140, d: 90, h: 65, type: 'house' },
+            { x: -320, z: 260, w: 90, d: 150, h: 70, type: 'house' },
+            { x: 320, z: -260, w: 90, d: 150, h: 70, type: 'house' },
+            // Скалы по флангам для танкования от борта
+            { x: -650, z: 0, w: 110, d: 280, h: 90, type: 'rock' },
+            { x: 650, z: 0, w: 110, d: 280, h: 90, type: 'rock' },
+            { x: 0, z: -620, w: 260, d: 100, h: 85, type: 'rock' },
+            { x: 0, z: 620, w: 260, d: 100, h: 85, type: 'rock' },
+            { x: -550, z: -550, w: 130, d: 130, h: 80, type: 'rock' },
+            { x: 550, z: 550, w: 130, d: 130, h: 80, type: 'rock' }
+        ];
+    }
+
+    const SPAWNS = [
+        { x: -900, z: -900, angle: Math.PI / 4 },
+        { x: 900,  z: 900,  angle: -3 * Math.PI / 4 },
+        { x: -900, z: 900,  angle: -Math.PI / 4 },
+        { x: 900,  z: -900, angle: 3 * Math.PI / 4 },
+        { x: 0,    z: -980, angle: Math.PI / 2 },
+        { x: 0,    z: 980,  angle: -Math.PI / 2 }
+    ];
+
+    function createTankObject(id, name, cls, spawnIdx, isBot, customColor) {
+        const spec = TANK_SPECS[cls];
+        const sp = SPAWNS[spawnIdx % SPAWNS.length];
+        return {
+            id, name, cls, isBot,
+            x: sp.x, z: sp.z,
+            hullAngle: sp.angle,
+            turretAngle: sp.angle,
+            hp: spec.maxHp, maxHp: spec.maxHp,
+            reloadTimer: 0, score: 0, speedNow: 0,
+            color: customColor || spec.color
+        };
+    }
+
+    function initMatch(hasGuest, guestName, guestClass) {
+        generateWorldMap();
         state.tanks = [];
-        cooldowns = {};
-        aiState = {};
+        state.shells = [];
 
-        // Игрок 1 (Хост)
-        state.tanks.push({
-            id: 'p1', name: hostName, color: '#4CAF50', isBot: false,
-            x: SPAWN_POINTS[0].x, y: SPAWN_POINTS[0].y, angle: SPAWN_POINTS[0].angle,
-            hp: 100, score: 0, shield: 0, speedBoost: 0
-        });
+        const myName = document.getElementById('player-name').value.trim() || "Командир";
+        state.tanks.push(createTankObject('p1', myName, selectedClass, 0, false, 0x4caf50));
 
-        // Игрок 2 (Гость онлайн)
         if (hasGuest) {
-            state.tanks.push({
-                id: 'p2', name: guestName, color: '#2196F3', isBot: false,
-                x: SPAWN_POINTS[1].x, y: SPAWN_POINTS[1].y, angle: SPAWN_POINTS[1].angle,
-                hp: 100, score: 0, shield: 0, speedBoost: 0
-            });
+            state.tanks.push(createTankObject('p2', guestName, guestClass || 'MT', 1, false, 0x2196f3));
         }
 
-        // Боты
-        const botColors = ['#e91e63', '#ff9800', '#9c27b0'];
-        const botNames = ['Бот Альфа', 'Бот Бета', 'Бот Гамма'];
-        for (let i = 0; i < botCount; i++) {
-            const spIndex = hasGuest ? (i + 2) % SPAWN_POINTS.length : (i + 1) % SPAWN_POINTS.length;
-            const sp = SPAWN_POINTS[spIndex];
-            const botId = 'bot' + (i + 1);
-            state.tanks.push({
-                id: botId, name: botNames[i], color: botColors[i], isBot: true,
-                x: sp.x, y: sp.y, angle: sp.angle,
-                hp: 100, score: 0, shield: 0, speedBoost: 0
-            });
-            aiState[botId] = { dirTimer: 0, turnDir: 1 };
+        const bots = parseInt(document.getElementById('bot-count').value, 10) || 0;
+        const botClasses = ['MT', 'HT', 'LT', 'HT'];
+        const botNames = ['ИС-7 [Бот]', 'T-54 [Бот]', 'Leopard [Бот]', 'E-100 [Бот]'];
+        for (let i = 0; i < bots; i++) {
+            const bCls = botClasses[i % botClasses.length];
+            state.tanks.push(createTankObject('bot' + i, botNames[i], bCls, i + 2, true, 0xd32f2f));
         }
     }
 
-    function getMyName() {
-        const val = document.getElementById('player-name').value.trim();
-        return val ? val.substring(0, 12) : "Танкист";
+    // --- ЗАПУСК И СЕТЬ (PeerJS) ---
+    function startSoloBattle() {
+        isHost = true; isSolo = true; myTankId = 'p1';
+        initMatch(false);
+        enterBattleScreen();
     }
 
-    function getBotCount() {
-        return parseInt(document.getElementById('bot-count').value, 10) || 0;
-    }
+    function hostOnlineBattle() {
+        const status = document.getElementById('net-status');
+        const code = "WOT-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+        status.innerText = "Подготовка сервера...";
+        peer = new Peer(code);
 
-    // --- РЕЖИМЫ ЗАПУСКА ---
-    function startSoloGame() {
-        isHost = true;
-        isSolo = true;
-        myTankId = 'p1';
-        let bots = getBotCount();
-        if (bots === 0) bots = 1; // В одиночном режиме минимум 1 бот
-        initMap();
-        setupPlayers(false, bots, getMyName());
-        startGame();
-    }
-
-    function createGame() {
-        const hostName = getMyName();
-        const roomCode = "T3D-" + Math.random().toString(36).substring(2, 7).toUpperCase();
-        statusText.innerText = "Создание 3D-сервера...";
-
-        peer = new Peer(roomCode);
         peer.on('open', (id) => {
-            const shortCode = id.replace("T3D-", "");
-            statusText.innerHTML = `Код комнаты: <b style="font-size:22px; color:#4CAF50;">${shortCode}</b><br>Ждем подключения друга...`;
-            isHost = true;
-            isSolo = false;
-            myTankId = 'p1';
-            initMap();
+            const short = id.replace("WOT-", "");
+            status.innerHTML = `Код роты: <b style="font-size:20px; color:#ff6d00;">${short}</b> — отправьте другу!`;
+            isHost = true; isSolo = false; myTankId = 'p1';
         });
 
-        peer.on('connection', (connection) => {
-            conn = connection;
-            conn.on('open', () => {
-                setupPlayers(true, getBotCount(), hostName, "Гость");
-                startGame();
-            });
+        peer.on('connection', (c) => {
+            conn = c;
             conn.on('data', (data) => {
                 if (data.type === 'join') {
-                    const p2 = state.tanks.find(t => t.id === 'p2');
-                    if (p2) p2.name = data.name;
-                    updateHUD();
+                    initMatch(true, data.name, data.cls);
+                    enterBattleScreen();
                 } else if (data.type === 'input') {
-                    remoteKeys = data.keys;
+                    guestInput = data.input;
                 }
             });
-            conn.on('close', () => { alert("Друг отключился!"); location.reload(); });
+            conn.on('close', () => { alert("Друг покинул бой!"); location.reload(); });
         });
-        peer.on('error', (err) => statusText.innerText = "Ошибка сети: " + err.type);
     }
 
-    function joinGame() {
-        const guestName = getMyName();
-        const code = document.getElementById('join-id').value.trim().toUpperCase();
-        if (!code) { statusText.innerText = "Введите код комнаты!"; return; }
+    function joinOnlineBattle() {
+        const code = document.getElementById('join-code').value.trim().toUpperCase();
+        if (!code) return;
+        const status = document.getElementById('net-status');
+        status.innerText = "Подключение к бою...";
 
-        statusText.innerText = "Подключение к 3D-арене...";
         peer = new Peer();
         peer.on('open', () => {
-            conn = peer.connect("T3D-" + code);
+            conn = peer.connect("WOT-" + code);
             conn.on('open', () => {
-                isHost = false;
-                isSolo = false;
-                myTankId = 'p2';
-                conn.send({ type: 'join', name: guestName });
-                startGame();
+                isHost = false; isSolo = false; myTankId = 'p2';
+                const myName = document.getElementById('player-name').value.trim() || "Союзник";
+                conn.send({ type: 'join', name: myName, cls: selectedClass });
+                generateWorldMap();
+                enterBattleScreen();
             });
             conn.on('data', (data) => {
                 if (data.type === 'state') {
-                    state = data.state;
+                    state.tanks = data.tanks;
+                    state.shells = data.shells;
+                    if (data.events && data.events.length > 0) {
+                        data.events.forEach(ev => handleBattleEvent(ev));
+                    }
                     updateHUD();
                 }
             });
-            conn.on('close', () => { alert("Хост закрыл игру!"); location.reload(); });
         });
-        peer.on('error', () => statusText.innerText = "Комната не найдена!");
     }
 
-    function startGame() {
-        document.getElementById('menu').style.display = 'none';
-        document.getElementById('game-container').style.display = 'flex';
-        initThreeJS();
-        updateHUD();
+    function handleBattleEvent(ev) {
+        if (ev.sound) playSound(ev.sound);
+        if (ev.shooter === myTankId && ev.text) {
+            showRibbon(ev.text, ev.color);
+        }
+    }
+
+    function enterBattleScreen() {
+        document.getElementById('hangar').style.display = 'none';
+        document.getElementById('battle-ui').style.display = 'block';
+        initThreeWorld();
         gameRunning = true;
-        requestAnimationFrame(gameLoop);
+        requestAnimationFrame(mainLoop);
     }
 
-    // --- УПРАВЛЕНИЕ ---
-    function sendInputIfGuest() {
-        if (!isHost && conn && conn.open) {
-            conn.send({ type: 'input', keys: keys });
+    // --- УПРАВЛЕНИЕ КАМЕРОЙ И ТАНКОМ ---
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'KeyW' || e.code === 'ArrowUp') myInput.up = true;
+        if (e.code === 'KeyS' || e.code === 'ArrowDown') myInput.down = true;
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') myInput.left = true;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') myInput.right = true;
+        if (e.code === 'Space') myInput.shoot = true;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') toggleSniper();
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'KeyW' || e.code === 'ArrowUp') myInput.up = false;
+        if (e.code === 'KeyS' || e.code === 'ArrowDown') myInput.down = false;
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') myInput.left = false;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') myInput.right = false;
+        if (e.code === 'Space') myInput.shoot = false;
+    });
+
+    // Захват мыши на ПК для вращения башни как в настоящем WoT
+    document.addEventListener('mousedown', (e) => {
+        if (!gameRunning) return;
+        if (e.target.closest('#touch-controls')) return;
+        if (document.pointerLockElement !== document.body) {
+            document.body.requestPointerLock();
+        } else if (e.button === 0) {
+            myInput.shoot = true;
+        } else if (e.button === 2) {
+            toggleSniper();
+        }
+    });
+    document.addEventListener('mouseup', () => { myInput.shoot = false; });
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    document.addEventListener('mousemove', (e) => {
+        if (document.pointerLockElement === document.body) {
+            const sens = sniperMode ? 0.0012 : 0.0026;
+            camYaw -= e.movementX * sens;
+            camPitch = Math.max(0.05, Math.min(0.65, camPitch + e.movementY * sens));
+        }
+    });
+
+    function toggleSniper() {
+        sniperMode = !sniperMode;
+        document.getElementById('sniper-overlay').style.display = sniperMode ? 'block' : 'none';
+        if (camera) {
+            camera.fov = sniperMode ? 22 : 55;
+            camera.updateProjectionMatrix();
         }
     }
 
-    window.addEventListener('keydown', (e) => handleKey(e.code, true));
-    window.addEventListener('keyup', (e) => handleKey(e.code, false));
+    // Мобильный тач-контроль и свайп для поворота башни
+    function bindTouch(id, key) {
+        const el = document.getElementById(id);
+        const start = (e) => { e.preventDefault(); myInput[key] = true; el.classList.add('active'); };
+        const end = (e) => { e.preventDefault(); myInput[key] = false; el.classList.remove('active'); };
+        el.addEventListener('touchstart', start, { passive: false });
+        el.addEventListener('touchend', end, { passive: false });
+    }
+    bindTouch('t-up', 'up'); bindTouch('t-down', 'down');
+    bindTouch('t-left', 'left'); bindTouch('t-right', 'right');
+    bindTouch('btn-mobile-fire', 'shoot');
 
-    function handleKey(code, isPressed) {
-        if (code === 'KeyW' || code === 'ArrowUp') keys.up = isPressed;
-        if (code === 'KeyS' || code === 'ArrowDown') keys.down = isPressed;
-        if (code === 'KeyA' || code === 'ArrowLeft') keys.left = isPressed;
-        if (code === 'KeyD' || code === 'ArrowRight') keys.right = isPressed;
-        if (code === 'Space') keys.shoot = isPressed;
-        sendInputIfGuest();
+    let lastTouchX = null, lastTouchY = null;
+    const aimZone = document.getElementById('aim-zone');
+    aimZone.addEventListener('touchstart', (e) => {
+        const t = e.changedTouches[0];
+        lastTouchX = t.clientX; lastTouchY = t.clientY;
+    }, { passive: false });
+    aimZone.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        if (lastTouchX !== null) {
+            const dx = t.clientX - lastTouchX;
+            const dy = t.clientY - lastTouchY;
+            const sens = sniperMode ? 0.003 : 0.006;
+            camYaw -= dx * sens;
+            camPitch = Math.max(0.05, Math.min(0.6, camPitch + dy * sens));
+        }
+        lastTouchX = t.clientX; lastTouchY = t.clientY;
+    }, { passive: false });
+
+    // --- ФИЗИКА, БРОНЕПРОБИТИЕ И ИИ БОТОВ (НА ХОСТЕ) ---
+    function normalizeAngle(a) {
+        while (a > Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
     }
 
-    function bindTouchButton(btnId, keyName) {
-        const btn = document.getElementById(btnId);
-        const press = (e) => { e.preventDefault(); keys[keyName] = true; btn.classList.add('active'); sendInputIfGuest(); };
-        const release = (e) => { e.preventDefault(); keys[keyName] = false; btn.classList.remove('active'); sendInputIfGuest(); };
-        btn.addEventListener('touchstart', press, { passive: false });
-        btn.addEventListener('touchend', release, { passive: false });
-        btn.addEventListener('touchcancel', release, { passive: false });
-        btn.addEventListener('mousedown', press);
-        btn.addEventListener('mouseup', release);
-        btn.addEventListener('mouseleave', release);
-    }
-    bindTouchButton('btn-up', 'up');
-    bindTouchButton('btn-down', 'down');
-    bindTouchButton('btn-left', 'left');
-    bindTouchButton('btn-right', 'right');
-    bindTouchButton('btn-shoot', 'shoot');
-
-    // --- ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ БОТОВ ---
-    function computeBotInput(bot) {
-        const input = { up: false, down: false, left: false, right: false, shoot: false };
-        let ai = aiState[bot.id] || { dirTimer: 0, turnDir: 1 };
-
-        // Ищем ближайшую живую цель (или бонус, если мало HP)
-        let target = null;
-        let minDist = Infinity;
-
-        if (bot.hp < 50 && state.powerups.length > 0) {
-            for (let p of state.powerups) {
-                let d = Math.hypot(p.x - bot.x, p.y - bot.y);
-                if (d < minDist) { minDist = d; target = p; }
-            }
-        }
-
-        if (!target) {
-            for (let other of state.tanks) {
-                if (other.id === bot.id || other.hp <= 0) continue;
-                let d = Math.hypot(other.x - bot.x, other.y - bot.y);
-                if (d < minDist) { minDist = d; target = other; }
-            }
-        }
-
-        if (!target) return input;
-
-        // Вычисляем угол на цель
-        const desiredAngle = Math.atan2(target.y - bot.y, target.x - bot.x);
-        let diff = desiredAngle - bot.angle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-
-        // Проверяем, нет ли стены прямо перед носом бота
-        const lookAheadX = bot.x + Math.cos(bot.angle) * 38;
-        const lookAheadY = bot.y + Math.sin(bot.angle) * 38;
-        const blocked = checkTankWallCollision(lookAheadX, lookAheadY, 16);
-
-        if (blocked) {
-            ai.dirTimer = 25;
-            input.down = true;
-            if (ai.turnDir > 0) input.right = true;
-            else input.left = true;
-        } else if (ai.dirTimer > 0) {
-            ai.dirTimer--;
-            input.up = true;
-            if (ai.turnDir > 0) input.right = true;
-            else input.left = true;
-        } else {
-            if (Math.abs(diff) > 0.12) {
-                if (diff > 0) input.right = true;
-                else input.left = true;
-            }
-            // Подъезжаем к цели или собираем бонус
-            if (minDist > 160 || target.type) {
-                input.up = true;
-            } else if (minDist < 90) {
-                input.down = true;
-            }
-            if (Math.random() < 0.02) ai.turnDir *= -1;
-        }
-
-        // Стреляем, если смотрим примерно на врага
-        if (!target.type && Math.abs(diff) < 0.28 && minDist < 550) {
-            input.shoot = true;
-        }
-
-        aiState[bot.id] = ai;
-        return input;
-    }
-
-    // --- ФИЗИКА И ЛОГИКА ИГРЫ ---
-    function spawnParticles(x, y, color, count) {
-        for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1.5 + Math.random() * 4.5;
-            state.particles.push({
-                x: x, y: y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                life: 14 + Math.random() * 12,
-                color: color
-            });
-        }
-    }
-
-    function checkTankWallCollision(x, y, radius) {
-        if (x - radius < 0 || x + radius > ARENA_W || y - radius < 0 || y + radius > ARENA_H) return true;
-        for (let w of state.walls) {
-            if (x + radius > w.x && x - radius < w.x + w.w && y + radius > w.y && y - radius < w.y + w.h) {
+    function checkObstacleCollision(x, z, radius) {
+        const half = MAP_SIZE / 2 - radius;
+        if (x < -half || x > half || z < -half || z > half) return true;
+        for (let ob of state.obstacles) {
+            if (x + radius > ob.x - ob.w/2 && x - radius < ob.x + ob.w/2 &&
+                z + radius > ob.z - ob.d/2 && z - radius < ob.z + ob.d/2) {
                 return true;
             }
         }
         return false;
     }
 
-    function respawnTank(tank) {
-        // Выбираем самую свободную точку спавна
-        let bestSp = SPAWN_POINTS[0];
-        let maxMinDist = -1;
-        for (let sp of SPAWN_POINTS) {
-            let nearest = 9999;
-            for (let other of state.tanks) {
-                if (other.id !== tank.id) {
-                    let d = Math.hypot(sp.x - other.x, sp.y - other.y);
-                    if (d < nearest) nearest = d;
-                }
-            }
-            if (nearest > maxMinDist) {
-                maxMinDist = nearest;
-                bestSp = sp;
-            }
+    function getBotControls(bot) {
+        const ctrl = { up: false, down: false, left: false, right: false, shoot: false, targetTurret: bot.turretAngle };
+        let target = null, minDist = Infinity;
+
+        for (let other of state.tanks) {
+            if (other.id === bot.id) continue;
+            const d = Math.hypot(other.x - bot.x, other.z - bot.z);
+            if (d < minDist) { minDist = d; target = other; }
         }
-        tank.x = bestSp.x;
-        tank.y = bestSp.y;
-        tank.angle = bestSp.angle;
-        tank.hp = 100;
-        tank.shield = 120; // 2 секунды защиты после возрождения
-        tank.speedBoost = 0;
+        if (!target) return ctrl;
+
+        // Наводим башню на врага
+        const angleToEnemy = Math.atan2(target.z - bot.z, target.x - bot.x);
+        ctrl.targetTurret = angleToEnemy;
+
+        // Движение корпуса
+        const lookX = bot.x + Math.cos(bot.hullAngle) * 55;
+        const lookZ = bot.z + Math.sin(bot.hullAngle) * 55;
+        if (checkObstacleCollision(lookX, lookZ, 24)) {
+            ctrl.down = true; ctrl.right = true;
+        } else {
+            let hullDiff = normalizeAngle(angleToEnemy - bot.hullAngle);
+            if (Math.abs(hullDiff) > 0.25) {
+                if (hullDiff > 0) ctrl.right = true; else ctrl.left = true;
+            }
+            if (minDist > 260) ctrl.up = true;
+            else if (minDist < 140) ctrl.down = true;
+        }
+
+        // Выстрел при сведении башни
+        if (Math.abs(normalizeAngle(angleToEnemy - bot.turretAngle)) < 0.12 && minDist < 1100) {
+            ctrl.shoot = true;
+        }
+        return ctrl;
     }
 
-    function moveTank(tank, input) {
-        if (tank.shield > 0) tank.shield--;
-        if (tank.speedBoost > 0) tank.speedBoost--;
+    // Расчет пробития брони, угла вхождения и рикошета (Механика WoT!)
+    function calculateArmorHit(shooter, target, shell) {
+        const specShooter = TANK_SPECS[shooter.cls];
+        const specTarget = TANK_SPECS[target.cls];
 
-        const baseSpeed = tank.speedBoost > 0 ? 4.2 : (tank.isBot ? 2.5 : 2.9);
-        const rotSpeed = tank.speedBoost > 0 ? 0.075 : 0.055;
+        // Вектор от центра танка к точке попадания
+        const hitAngle = Math.atan2(shell.z - target.z, shell.x - target.x);
+        const relAngle = Math.abs(normalizeAngle(hitAngle - target.hullAngle));
 
-        if (input.left) tank.angle -= rotSpeed;
-        if (input.right) tank.angle += rotSpeed;
+        // Определяем зону попадания: Лоб (<45°), Корма (>135°), иначе Борт
+        let zoneName = "БОРТ";
+        let nominalArmor = specTarget.armor.side;
+        let zoneNormalAngle = target.hullAngle + (normalizeAngle(hitAngle - target.hullAngle) > 0 ? Math.PI/2 : -Math.PI/2);
 
-        let moveStep = 0;
-        if (input.up) moveStep = baseSpeed;
-        if (input.down) moveStep = -baseSpeed * 0.75;
-
-        if (moveStep !== 0) {
-            const nx = tank.x + Math.cos(tank.angle) * moveStep;
-            const ny = tank.y + Math.sin(tank.angle) * moveStep;
-            if (!checkTankWallCollision(nx, tank.y, 17)) tank.x = nx;
-            if (!checkTankWallCollision(tank.x, ny, 17)) tank.y = ny;
+        if (relAngle < Math.PI / 4) {
+            zoneName = "ЛОБ";
+            nominalArmor = specTarget.armor.front;
+            zoneNormalAngle = target.hullAngle;
+        } else if (relAngle > 3 * Math.PI / 4) {
+            zoneName = "КОРМА";
+            nominalArmor = specTarget.armor.rear;
+            zoneNormalAngle = target.hullAngle + Math.PI;
         }
 
-        // Подбор бонусов
-        for (let i = state.powerups.length - 1; i >= 0; i--) {
-            let p = state.powerups[i];
-            if (Math.hypot(tank.x - p.x, tank.y - p.y) < 28) {
-                if (p.type === 'heal') tank.hp = Math.min(100, tank.hp + 40);
-                if (p.type === 'shield') tank.shield = 300;
-                if (p.type === 'speed') tank.speedBoost = 360;
-                spawnParticles(p.x, p.y, '#ffffff', 12);
-                state.powerups.splice(i, 1);
-            }
+        // Угол встречи снаряда с нормалью брони
+        const shellFlightAngle = Math.atan2(shell.vz, shell.vx);
+        const impactAngle = Math.abs(normalizeAngle(shellFlightAngle - (zoneNormalAngle + Math.PI)));
+
+        // Правило рикошета (> 70 градусов = 1.22 радиана)
+        if (impactAngle > 1.18) {
+            return { result: 'ricochet', dmg: 0, normalAngle: zoneNormalAngle };
         }
 
-        // Стрельба
-        let cd = cooldowns[tank.id] || 0;
-        if (cd > 0) cd--;
+        // Приведенная броня: Толщина / cos(угла)
+        const effectiveArmor = nominalArmor / Math.max(0.25, Math.cos(impactAngle));
+        // Разброс бронепробития ±25% как в ВБР WoT
+        const actualPen = specShooter.pen * (0.85 + Math.random() * 0.3);
 
-        if (input.shoot && cd === 0) {
-            const bx = tank.x + Math.cos(tank.angle) * 26;
-            const by = tank.y + Math.sin(tank.angle) * 26;
-            state.bullets.push({
-                x: bx, y: by,
-                vx: Math.cos(tank.angle) * 8.5,
-                vy: Math.sin(tank.angle) * 8.5,
-                owner: tank.id,
-                bounces: 1
-            });
-            spawnParticles(bx, by, '#ffeb3b', 5);
-            cd = tank.speedBoost > 0 ? 22 : (tank.isBot ? 45 : 34);
-        }
-        cooldowns[tank.id] = cd;
-    }
-
-    function spawnPowerup() {
-        if (state.powerups.length >= 3) return;
-        const types = ['heal', 'shield', 'speed'];
-        const type = types[Math.floor(Math.random() * types.length)];
-        for (let attempt = 0; attempt < 20; attempt++) {
-            const rx = 60 + Math.random() * (ARENA_W - 120);
-            const ry = 60 + Math.random() * (ARENA_H - 120);
-            if (!checkTankWallCollision(rx, ry, 25)) {
-                state.powerups.push({ x: rx, y: ry, type: type });
-                break;
-            }
+        if (actualPen >= effectiveArmor) {
+            // Пробитие! Разброс урона ±25%
+            const dmg = Math.round(specShooter.dmg * (0.75 + Math.random() * 0.5));
+            return { result: 'penetration', dmg: dmg, zone: zoneName };
+        } else {
+            return { result: 'no_pen', dmg: 0, zone: zoneName };
         }
     }
 
-    function updatePhysics() {
+    function updateServerPhysics() {
+        state.events = [];
+
         for (let tank of state.tanks) {
-            let input = keys;
-            if (tank.id === 'p2') input = remoteKeys;
-            else if (tank.isBot) input = computeBotInput(tank);
-            moveTank(tank, input);
-        }
+            const spec = TANK_SPECS[tank.cls];
+            let ctrl = myInput;
+            if (tank.id === 'p2') ctrl = guestInput;
+            else if (tank.isBot) ctrl = getBotControls(tank);
 
-        powerupTimer--;
-        if (powerupTimer <= 0) {
-            spawnPowerup();
-            powerupTimer = 300 + Math.random() * 200;
-        }
+            // Поворот корпуса
+            if (ctrl.left) tank.hullAngle -= spec.rotSpeed;
+            if (ctrl.right) tank.hullAngle += spec.rotSpeed;
 
-        for (let i = state.particles.length - 1; i >= 0; i--) {
-            let pt = state.particles[i];
-            pt.x += pt.vx; pt.y += pt.vy; pt.life--;
-            if (pt.life <= 0) state.particles.splice(i, 1);
-        }
-
-        for (let i = state.bullets.length - 1; i >= 0; i--) {
-            let b = state.bullets[i];
-            let prevX = b.x, prevY = b.y;
-            b.x += b.vx; b.y += b.vy;
-            let destroyed = false;
-
-            if (b.x < 5 || b.x > ARENA_W - 5) {
-                if (b.bounces > 0) { b.vx = -b.vx; b.bounces--; spawnParticles(b.x, b.y, '#ffeb3b', 4); }
-                else destroyed = true;
+            // Плавный поворот башни с ограниченной скоростью приводов
+            const diffTurret = normalizeAngle(ctrl.targetTurret - tank.turretAngle);
+            if (Math.abs(diffTurret) <= spec.turretSpeed) {
+                tank.turretAngle = ctrl.targetTurret;
+            } else {
+                tank.turretAngle += Math.sign(diffTurret) * spec.turretSpeed;
             }
-            if (b.y < 5 || b.y > ARENA_H - 5) {
-                if (b.bounces > 0) { b.vy = -b.vy; b.bounces--; spawnParticles(b.x, b.y, '#ffeb3b', 4); }
-                else destroyed = true;
-            }
-            if (destroyed) { state.bullets.splice(i, 1); continue; }
 
-            // Стены
-            for (let wIdx = state.walls.length - 1; wIdx >= 0; wIdx--) {
-                let w = state.walls[wIdx];
-                if (b.x + 4 > w.x && b.x - 4 < w.x + w.w && b.y + 4 > w.y && b.y - 4 < w.y + w.h) {
-                    if (w.type === 1) {
-                        w.hp--;
-                        spawnParticles(b.x, b.y, '#d84315', 7);
-                        if (w.hp <= 0) {
-                            spawnParticles(w.x + w.w/2, w.y + w.h/2, '#bf360c', 16);
-                            state.walls.splice(wIdx, 1);
-                        }
-                        destroyed = true;
+            // Движение вперед / назад
+            let step = 0;
+            if (ctrl.up) step = spec.speed;
+            if (ctrl.down) step = -spec.speed * 0.6;
+            tank.speedNow = Math.round(Math.abs(step) * 11);
+
+            if (step !== 0) {
+                const nx = tank.x + Math.cos(tank.hullAngle) * step;
+                const nz = tank.z + Math.sin(tank.hullAngle) * step;
+                if (!checkObstacleCollision(nx, tank.z, 22)) tank.x = nx;
+                if (!checkObstacleCollision(tank.x, nz, 22)) tank.z = nz;
+            }
+
+            // Перезарядка и выстрел
+            if (tank.reloadTimer > 0) tank.reloadTimer--;
+            if (ctrl.shoot && tank.reloadTimer === 0) {
+                tank.reloadTimer = spec.reload;
+                const muzzleX = tank.x + Math.cos(tank.turretAngle) * 38;
+                const muzzleZ = tank.z + Math.sin(tank.turretAngle) * 38;
+                state.shells.push({
+                    x: muzzleX, z: muzzleZ,
+                    vx: Math.cos(tank.turretAngle) * 18,
+                    vz: Math.sin(tank.turretAngle) * 18,
+                    owner: tank.id, life: 95
+                });
+                state.events.push({ shooter: tank.id, sound: 'shoot' });
+            }
+        }
+
+        // Полет снарядов
+        for (let i = state.shells.length - 1; i >= 0; i--) {
+            let s = state.shells[i];
+            s.x += s.vx; s.z += s.vz; s.life--;
+
+            if (s.life <= 0 || checkObstacleCollision(s.x, s.z, 3)) {
+                state.shells.splice(i, 1);
+                continue;
+            }
+
+            // Проверка попадания в танки
+            for (let target of state.tanks) {
+                if (target.id === s.owner) continue;
+                if (Math.hypot(s.x - target.x, s.z - target.z) < 26) {
+                    const shooter = state.tanks.find(t => t.id === s.owner) || target;
+                    const hit = calculateArmorHit(shooter, target, s);
+
+                    if (hit.result === 'ricochet') {
+                        // Снаряд реально меняет траекторию при рикошете!
+                        const reflectAngle = 2 * hit.normalAngle - Math.atan2(s.vz, s.vx) + Math.PI;
+                        s.vx = Math.cos(reflectAngle) * 15;
+                        s.vz = Math.sin(reflectAngle) * 15;
+                        s.owner = target.id;
+                        state.events.push({ shooter: shooter.id, sound: 'ricochet', text: 'РИКОШЕТ!', color: '#ff9800' });
+                    } else if (hit.result === 'no_pen') {
+                        state.shells.splice(i, 1);
+                        state.events.push({ shooter: shooter.id, sound: 'ricochet', text: `НЕ ПРОБИЛ БРОНЮ (${hit.zone})`, color: '#78909c' });
                     } else {
-                        if (b.bounces > 0) {
-                            if (prevX <= w.x || prevX >= w.x + w.w) b.vx = -b.vx;
-                            else b.vy = -b.vy;
-                            b.bounces--;
-                            spawnParticles(b.x, b.y, '#00e5ff', 6);
-                        } else {
-                            spawnParticles(b.x, b.y, '#ffffff', 5);
-                            destroyed = true;
+                        target.hp -= hit.dmg;
+                        state.shells.splice(i, 1);
+                        state.events.push({ shooter: shooter.id, sound: 'hit', text: `ПРОБИТИЕ! -${hit.dmg} (${hit.zone})`, color: '#d32f2f' });
+
+                        if (target.hp <= 0) {
+                            shooter.score++;
+                            state.events.push({ shooter: shooter.id, sound: 'hit', text: `УНИЧТОЖЕН ${target.name}!`, color: '#ff6d00' });
+                            const sp = SPAWNS[Math.floor(Math.random() * SPAWNS.length)];
+                            target.x = sp.x; target.z = sp.z; target.hp = target.maxHp;
                         }
                     }
                     break;
                 }
             }
-            if (destroyed) { state.bullets.splice(i, 1); continue; }
+        }
 
-            // Попадания в танки
-            for (let tank of state.tanks) {
-                if (Math.hypot(b.x - tank.x, b.y - tank.y) < 20) {
-                    if (b.owner !== tank.id || b.bounces < 1) {
-                        if (tank.shield <= 0) {
-                            tank.hp -= 25;
-                            spawnParticles(tank.x, tank.y, tank.color, 10);
-                        } else {
-                            spawnParticles(b.x, b.y, '#00e5ff', 8);
-                        }
-                        state.bullets.splice(i, 1);
+        state.events.forEach(ev => handleBattleEvent(ev));
+        updateHUD();
 
-                        if (tank.hp <= 0) {
-                            spawnParticles(tank.x, tank.y, '#ff5722', 30);
-                            const killer = state.tanks.find(t => t.id === b.owner);
-                            if (killer && killer.id !== tank.id) {
-                                killer.score++;
-                                if (killer.score >= 10) {
-                                    // Сброс карты при 10 фрагах
-                                    initMap();
-                                    state.tanks.forEach(t => t.score = 0);
-                                }
-                            }
-                            respawnTank(tank);
-                        }
-                        break;
-                    }
+        if (!isSolo && conn && conn.open) {
+            conn.send({ type: 'state', tanks: state.tanks, shells: state.shells, events: state.events });
+        }
+    }
+
+    // --- 3D ДВИЖОК THREE.JS ---
+    let scene, camera, renderer;
+    let tankModels = {};
+    let shellModels = [];
+    let markerDivs = {};
+
+    function initThreeWorld() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x8799a8);
+        scene.fog = new THREE.FogExp2(0x8799a8, 0.00065);
+
+        camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 2, 3000);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Свет
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const sun = new THREE.DirectionalLight(0xfff5e0, 0.85);
+        sun.position.set(600, 900, 500);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+        sun.shadow.camera.left = -1200; sun.shadow.camera.right = 1200;
+        sun.shadow.camera.top = 1200; sun.shadow.camera.bottom = -1200;
+        scene.add(sun);
+
+        // Земля и сетка
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE),
+            new THREE.MeshStandardMaterial({ color: 0x3b4432, roughness: 0.95 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const grid = new THREE.GridHelper(MAP_SIZE, 40, 0x2a3024, 0x2a3024);
+        grid.position.y = 0.2;
+        scene.add(grid);
+
+        // Строим здания и скалы
+        for (let ob of state.obstacles) {
+            const mat = new THREE.MeshStandardMaterial({
+                color: ob.type === 'rock' ? 0x5c6468 : (ob.type === 'bunker' ? 0x454a4d : 0x7a5c48),
+                roughness: 0.85
+            });
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(ob.w, ob.h, ob.d), mat);
+            mesh.position.set(ob.x, ob.h / 2, ob.z);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            scene.add(mesh);
+        }
+    }
+
+    function buildTankModel(t) {
+        const spec = TANK_SPECS[t.cls];
+        const root = new THREE.Group();
+
+        // Корпус
+        const hullGroup = new THREE.Group();
+        const hullMat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.5, metalness: 0.3 });
+        const trackMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+
+        const hull = new THREE.Mesh(new THREE.BoxGeometry(spec.scale.l, spec.scale.h, spec.scale.w), hullMat);
+        hull.position.y = spec.scale.h / 2 + 4;
+        hull.castShadow = true;
+        hullGroup.add(hull);
+
+        // Гусеницы
+        const tGeo = new THREE.BoxGeometry(spec.scale.l + 4, spec.scale.h, 6);
+        const tL = new THREE.Mesh(tGeo, trackMat); tL.position.set(0, spec.scale.h/2 + 2, -spec.scale.w/2 - 2);
+        const tR = new THREE.Mesh(tGeo, trackMat); tR.position.set(0, spec.scale.h/2 + 2, spec.scale.w/2 + 2);
+        hullGroup.add(tL, tR);
+        root.add(hullGroup);
+
+        // Башня (вращается независимо!)
+        const turretGroup = new THREE.Group();
+        turretGroup.position.y = spec.scale.h + 4;
+        const turretMat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.4, metalness: 0.4 });
+        const turret = new THREE.Mesh(new THREE.CylinderGeometry(spec.scale.w * 0.42, spec.scale.w * 0.48, 10, 14), turretMat);
+        turret.position.y = 5;
+        turret.castShadow = true;
+        turretGroup.add(turret);
+
+        // Длинное орудие
+        const gunGeo = new THREE.CylinderGeometry(2.4, 3.2, 42, 12);
+        gunGeo.rotateZ(Math.PI / 2);
+        const gun = new THREE.Mesh(gunGeo, new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.7 }));
+        gun.position.set(22, 5, 0);
+        turretGroup.add(gun);
+
+        root.add(turretGroup);
+        root.userData = { hullGroup, turretGroup };
+        scene.add(root);
+        return root;
+    }
+
+    function updateHUD() {
+        const top = document.getElementById('top-bar');
+        top.innerHTML = state.tanks.map(t => `<span style="color:${t.id === myTankId ? '#ff9e40' : '#eee'}">${t.name}: ${t.score}</span>`).join(' | ');
+
+        const me = state.tanks.find(t => t.id === myTankId);
+        if (!me) return;
+        const spec = TANK_SPECS[me.cls];
+
+        document.getElementById('hud-tank-name').innerText = spec.label;
+        document.getElementById('my-hp-fill').style.width = Math.max(0, (me.hp / me.maxHp) * 100) + '%';
+        document.getElementById('hud-hp-text').innerText = `${Math.max(0, me.hp)} / ${me.maxHp}`;
+        document.getElementById('hud-speed').innerText = `${me.speedNow} км/ч`;
+        document.getElementById('hud-armor').innerText = `${spec.armor.front}/${spec.armor.side} мм`;
+
+        const rTimer = document.getElementById('reload-timer');
+        if (me.reloadTimer > 0) {
+            rTimer.style.color = '#ff5252';
+            rTimer.innerText = (me.reloadTimer / 60).toFixed(1) + ' с';
+        } else {
+            rTimer.style.color = '#00e676';
+            rTimer.innerText = 'ГОТОВ';
+        }
+    }
+
+    function drawMinimap() {
+        const cvs = document.getElementById('minimap');
+        const ctx = cvs.getContext('2d');
+        const W = cvs.width, H = cvs.height;
+        ctx.clearRect(0, 0, W, H);
+
+        const toMap = (val) => ((val + MAP_SIZE / 2) / MAP_SIZE) * W;
+
+        // Препятствия
+        ctx.fillStyle = '#555';
+        for (let ob of state.obstacles) {
+            ctx.fillRect(toMap(ob.x - ob.w/2), toMap(ob.z - ob.d/2), (ob.w/MAP_SIZE)*W, (ob.d/MAP_SIZE)*H);
+        }
+
+        // Танки
+        for (let t of state.tanks) {
+            ctx.fillStyle = t.id === myTankId ? '#00e676' : '#ff3d00';
+            ctx.beginPath();
+            ctx.arc(toMap(t.x), toMap(t.z), 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function renderScene() {
+        const me = state.tanks.find(t => t.id === myTankId);
+        if (me) {
+            // Передаем желаемый угол башни туда, куда смотрит камера игрока
+            myInput.targetTurret = camYaw;
+            if (!isHost && conn && conn.open) {
+                conn.send({ type: 'input', input: myInput });
+            }
+        }
+
+        // Синхронизация 3D танков
+        for (let t of state.tanks) {
+            let model = tankModels[t.id];
+            if (!model) {
+                model = buildTankModel(t);
+                tankModels[t.id] = model;
+            }
+            model.position.set(t.x, 0, t.z);
+            model.userData.hullGroup.rotation.y = -t.hullAngle;
+            model.userData.turretGroup.rotation.y = -t.turretAngle;
+
+            // Маркеры над врагами
+            if (t.id !== myTankId) {
+                let m = markerDivs[t.id];
+                if (!m) {
+                    m = document.createElement('div');
+                    m.className = 'enemy-marker';
+                    m.innerHTML = `<div class="m-name"></div><div class="m-hp"><div class="m-hp-fill"></div></div>`;
+                    document.getElementById('markers-layer').appendChild(m);
+                    markerDivs[t.id] = m;
+                }
+                const pos = new THREE.Vector3(t.x, 36, t.z);
+                pos.project(camera);
+                if (pos.z < 1) {
+                    m.style.display = 'block';
+                    m.style.left = (pos.x * 0.5 + 0.5) * window.innerWidth + 'px';
+                    m.style.top = (-(pos.y * 0.5) + 0.5) * window.innerHeight + 'px';
+                    m.querySelector('.m-name').innerText = `${t.name} (${t.hp})`;
+                    m.querySelector('.m-hp-fill').style.width = Math.max(0, (t.hp / t.maxHp) * 100) + '%';
+                } else {
+                    m.style.display = 'none';
                 }
             }
         }
 
-        updateHUD();
-        if (!isSolo && conn && conn.open) {
-            conn.send({ type: 'state', state: state });
-        }
-    }
-
-    function updateHUD() {
-        const hud = document.getElementById('hud');
-        hud.innerHTML = state.tanks.map(t =>
-            `<div class="score-badge" style="color:${t.color}; border-bottom: 2px solid ${t.color}">
-                ${t.name}: ${t.score}
-            </div>`
-        ).join('');
-    }
-
-    // =========================================================
-    // --- 3D ГРАФИКА НА THREE.JS ---
-    // =========================================================
-    let scene, camera, renderer;
-    let tankMeshes = {};
-    let wallMeshes = [];
-    let bulletMeshes = [];
-    let powerupMeshes = [];
-    let particleMeshes = [];
-    let labelElements = {};
-
-    function initThreeJS() {
-        const wrapper = document.getElementById('canvas-wrapper');
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111318);
-        scene.fog = new THREE.FogExp2(0x111318, 0.0007);
-
-        camera = new THREE.PerspectiveCamera(46, 800 / 600, 10, 2500);
-        camera.position.set(400, 560, 740);
-        camera.lookAt(400, 0, 310);
-
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(800, 600);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-        // Очищаем старый canvas если есть
-        const oldCanvas = wrapper.querySelector('canvas');
-        if (oldCanvas) oldCanvas.remove();
-        wrapper.insertBefore(renderer.domElement, document.getElementById('labels-container'));
-
-        // Освещение
-        const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-        scene.add(ambient);
-
-        const dirLight = new THREE.DirectionalLight(0xfff8e7, 0.85);
-        dirLight.position.set(250, 650, 450);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
-        dirLight.shadow.camera.near = 100;
-        dirLight.shadow.camera.far = 1500;
-        dirLight.shadow.camera.left = -500;
-        dirLight.shadow.camera.right = 500;
-        dirLight.shadow.camera.top = 450;
-        dirLight.shadow.camera.bottom = -450;
-        scene.add(dirLight);
-
-        // Пол арены
-        const floorGeo = new THREE.PlaneGeometry(ARENA_W, ARENA_H);
-        const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e2229, roughness: 0.9 });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.set(ARENA_W / 2, 0, ARENA_H / 2);
-        floor.receiveShadow = true;
-        scene.add(floor);
-
-        // Сетка на полу
-        const grid = new THREE.GridHelper(ARENA_W, 20, 0x333942, 0x282c34);
-        grid.position.set(ARENA_W / 2, 0.2, ARENA_H / 2);
-        scene.add(grid);
-
-        // Бортики вокруг арены
-        const borderMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.6, metalness: 0.3 });
-        const bTop = new THREE.Mesh(new THREE.BoxGeometry(ARENA_W + 24, 28, 12), borderMat);
-        bTop.position.set(ARENA_W / 2, 14, -6);
-        const bBot = bTop.clone(); bBot.position.set(ARENA_W / 2, 14, ARENA_H + 6);
-        const bLeft = new THREE.Mesh(new THREE.BoxGeometry(12, 28, ARENA_H), borderMat);
-        bLeft.position.set(-6, 14, ARENA_H / 2);
-        const bRight = bLeft.clone(); bRight.position.set(ARENA_W + 6, 14, ARENA_H / 2);
-        scene.add(bTop, bBot, bLeft, bRight);
-    }
-
-    // Сборка 3D модели танка
-    function createTankMesh(colorHex) {
-        const group = new THREE.Group();
-
-        const trackMat = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.9 });
-        const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4, metalness: 0.2 });
-        const turretMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.5, metalness: 0.4 });
-        const gunMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, metalness: 0.7, roughness: 0.3 });
-
-        // Левая и правая гусеницы
-        const trackGeo = new THREE.BoxGeometry(38, 10, 8);
-        const leftTrack = new THREE.Mesh(trackGeo, trackMat);
-        leftTrack.position.set(0, 5, -15);
-        leftTrack.castShadow = true;
-        const rightTrack = new THREE.Mesh(trackGeo, trackMat);
-        rightTrack.position.set(0, 5, 15);
-        rightTrack.castShadow = true;
-        group.add(leftTrack, rightTrack);
-
-        // Корпус танка
-        const bodyGeo = new THREE.BoxGeometry(32, 11, 24);
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.set(0, 9, 0);
-        body.castShadow = true;
-        group.add(body);
-
-        // Башня
-        const turretGeo = new THREE.CylinderGeometry(10, 12, 9, 16);
-        const turret = new THREE.Mesh(turretGeo, turretMat);
-        turret.position.set(-2, 18, 0);
-        turret.castShadow = true;
-        group.add(turret);
-
-        // Ствол пушки
-        const gunGeo = new THREE.CylinderGeometry(2.6, 2.6, 26, 12);
-        gunGeo.rotateZ(Math.PI / 2);
-        const gun = new THREE.Mesh(gunGeo, gunMat);
-        gun.position.set(12, 18, 0);
-        gun.castShadow = true;
-        group.add(gun);
-
-        // Сфера энергетического щита
-        const shieldGeo = new THREE.SphereGeometry(27, 18, 18);
-        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.28, wireframe: true });
-        const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
-        shieldMesh.position.set(0, 14, 0);
-        shieldMesh.visible = false;
-        group.add(shieldMesh);
-        group.userData.shieldMesh = shieldMesh;
-
-        scene.add(group);
-        return group;
-    }
-
-    // Обновление 3D-координат плавающих имен и полосок HP
-    function updateTankLabel(tank, mesh) {
-        const container = document.getElementById('labels-container');
-        let el = labelElements[tank.id];
-        if (!el) {
-            el = document.createElement('div');
-            el.className = 'tank-label';
-            el.innerHTML = `<div class="name"></div><div class="hp-bg"><div class="hp-fill"></div></div>`;
-            container.appendChild(el);
-            labelElements[tank.id] = el;
-        }
-
-        el.querySelector('.name').innerText = tank.name;
-        const fill = el.querySelector('.hp-fill');
-        fill.style.width = Math.max(0, tank.hp) + '%';
-        fill.style.background = tank.hp > 50 ? '#4CAF50' : (tank.hp > 25 ? '#ff9800' : '#f44336');
-
-        // Проекция 3D точки над танком в 2D экранные координаты
-        const pos = new THREE.Vector3(tank.x, 38, tank.y);
-        pos.project(camera);
-
-        const x = (pos.x * 0.5 + 0.5) * container.clientWidth;
-        const y = (-(pos.y * 0.5) + 0.5) * container.clientHeight;
-
-        el.style.left = `${x}px`;
-        el.style.top = `${y}px`;
-    }
-
-    function render3D() {
-        if (!scene) return;
-
-        // 1. Синхронизация Танков
-        const activeIds = new Set(state.tanks.map(t => t.id));
-        for (let id in tankMeshes) {
-            if (!activeIds.has(id)) {
-                scene.remove(tankMeshes[id]);
-                delete tankMeshes[id];
-                if (labelElements[id]) { labelElements[id].remove(); delete labelElements[id]; }
-            }
-        }
-
-        for (let tank of state.tanks) {
-            let mesh = tankMeshes[tank.id];
-            if (!mesh) {
-                mesh = createTankMesh(tank.color);
-                tankMeshes[tank.id] = mesh;
-            }
-            mesh.position.set(tank.x, 0, tank.y);
-            mesh.rotation.y = -tank.angle; // Коррекция угла для 3D оси Y
-
-            // Щит
-            mesh.userData.shieldMesh.visible = tank.shield > 0;
-            if (tank.shield > 0) {
-                mesh.userData.shieldMesh.rotation.y += 0.05;
-            }
-
-            updateTankLabel(tank, mesh);
-
-            // Плавное слежение камеры за своим танком
-            if (tank.id === myTankId) {
-                const targetCamX = 400 + (tank.x - 400) * 0.22;
-                const targetCamZ = 730 + (tank.y - 300) * 0.22;
-                camera.position.x += (targetCamX - camera.position.x) * 0.08;
-                camera.position.z += (targetCamZ - camera.position.z) * 0.08;
-                camera.lookAt(400 + (tank.x - 400) * 0.1, 0, 300 + (tank.y - 300) * 0.1);
-            }
-        }
-
-        // 2. Синхронизация Стен
-        while (wallMeshes.length > state.walls.length) {
-            scene.remove(wallMeshes.pop());
-        }
-        while (wallMeshes.length < state.walls.length) {
-            const m = new THREE.Mesh(
-                new THREE.BoxGeometry(1, 1, 1),
-                new THREE.MeshStandardMaterial({ roughness: 0.7 })
-            );
-            m.castShadow = true;
-            m.receiveShadow = true;
-            scene.add(m);
-            wallMeshes.push(m);
-        }
-        for (let i = 0; i < state.walls.length; i++) {
-            const w = state.walls[i];
-            const m = wallMeshes[i];
-            const height = w.type === 2 ? 34 : (12 + w.hp * 6); // Кирпичи проседают при разрушении
-            m.scale.set(w.w, height, w.h);
-            m.position.set(w.x + w.w / 2, height / 2, w.y + w.h / 2);
-            if (w.type === 2) {
-                m.material.color.setHex(0x607d8b);
-                m.material.metalness = 0.5;
+        // Камера от 3-го лица / Снайперский прицел
+        if (me) {
+            if (sniperMode) {
+                camera.position.set(
+                    me.x + Math.cos(me.turretAngle) * 20,
+                    22,
+                    me.z + Math.sin(me.turretAngle) * 20
+                );
+                camera.lookAt(
+                    me.x + Math.cos(camYaw) * 400,
+                    22 - Math.sin(camPitch - 0.25) * 300,
+                    me.z + Math.sin(camYaw) * 400
+                );
             } else {
-                m.material.metalness = 0.1;
-                m.material.color.setHex(w.hp === 3 ? 0xb7410e : (w.hp === 2 ? 0x8d3209 : 0x5e2106));
+                const dist = 135;
+                camera.position.set(
+                    me.x - Math.cos(camYaw) * dist,
+                    55 + camPitch * 90,
+                    me.z - Math.sin(camYaw) * dist
+                );
+                camera.lookAt(
+                    me.x + Math.cos(camYaw) * 120,
+                    18,
+                    me.z + Math.sin(camYaw) * 120
+                );
             }
         }
 
-        // 3. Синхронизация Бонусов (вращающиеся 3D кристаллы)
-        while (powerupMeshes.length > state.powerups.length) {
-            scene.remove(powerupMeshes.pop());
-        }
-        while (powerupMeshes.length < state.powerups.length) {
-            const m = new THREE.Mesh(
-                new THREE.OctahedronGeometry(12, 0),
-                new THREE.MeshStandardMaterial({ metalness: 0.3, roughness: 0.2 })
+        // Отрисовка летящих снарядов (трассеров)
+        while (shellModels.length > state.shells.length) scene.remove(shellModels.pop());
+        while (shellModels.length < state.shells.length) {
+            const sm = new THREE.Mesh(
+                new THREE.SphereGeometry(2.5, 8, 8),
+                new THREE.MeshBasicMaterial({ color: 0xffea00 })
             );
-            m.castShadow = true;
-            scene.add(m);
-            powerupMeshes.push(m);
+            scene.add(sm);
+            shellModels.push(sm);
         }
-        for (let i = 0; i < state.powerups.length; i++) {
-            const p = state.powerups[i];
-            const m = powerupMeshes[i];
-            m.position.set(p.x, 14 + Math.sin(Date.now() * 0.006 + i) * 4, p.y);
-            m.rotation.y += 0.04;
-            m.rotation.x += 0.02;
-            const col = p.type === 'heal' ? 0x4CAF50 : (p.type === 'shield' ? 0x00bcd4 : 0xffc107);
-            m.material.color.setHex(col);
-            m.material.emissive.setHex(col);
-            m.material.emissiveIntensity = 0.35;
+        for (let i = 0; i < state.shells.length; i++) {
+            shellModels[i].position.set(state.shells[i].x, 16, state.shells[i].z);
         }
 
-        // 4. Синхронизация Пуль
-        while (bulletMeshes.length > state.bullets.length) {
-            scene.remove(bulletMeshes.pop());
-        }
-        while (bulletMeshes.length < state.bullets.length) {
-            const m = new THREE.Mesh(
-                new THREE.SphereGeometry(4.5, 10, 10),
-                new THREE.MeshBasicMaterial({ color: 0xffeb3b })
-            );
-            scene.add(m);
-            bulletMeshes.push(m);
-        }
-        for (let i = 0; i < state.bullets.length; i++) {
-            const b = state.bullets[i];
-            const m = bulletMeshes[i];
-            m.position.set(b.x, 16, b.y);
-            m.material.color.setHex(b.bounces > 0 ? 0xffeb3b : 0xff5722);
-        }
-
-        // 5. 3D Частицы взрывов
-        while (particleMeshes.length > state.particles.length) {
-            scene.remove(particleMeshes.pop());
-        }
-        while (particleMeshes.length < state.particles.length) {
-            const m = new THREE.Mesh(
-                new THREE.BoxGeometry(5, 5, 5),
-                new THREE.MeshBasicMaterial({ color: 0xff5722 })
-            );
-            scene.add(m);
-            particleMeshes.push(m);
-        }
-        for (let i = 0; i < state.particles.length; i++) {
-            const pt = state.particles[i];
-            const m = particleMeshes[i];
-            m.position.set(pt.x, 8 + (pt.life * 0.6), pt.y);
-            m.rotation.x += 0.1;
-            m.rotation.y += 0.1;
-            const scale = Math.max(0.2, pt.life / 20);
-            m.scale.set(scale, scale, scale);
-            m.material.color.set(pt.color);
-        }
-
+        drawMinimap();
         renderer.render(scene, camera);
     }
 
-    function gameLoop() {
+    function mainLoop() {
         if (!gameRunning) return;
-        if (isHost) updatePhysics();
-        render3D();
-        requestAnimationFrame(gameLoop);
+        if (isHost) updateServerPhysics();
+        renderScene();
+        requestAnimationFrame(mainLoop);
     }
 </script>
 </body>
