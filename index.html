@@ -1,1 +1,434 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Танчики Онлайн (P2P)</title>
+    <!-- Подключаем PeerJS для связи между игроками без сервера -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+        #menu {
+            background: #2b2b2b;
+            padding: 25px 35px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 { margin-top: 0; color: #4CAF50; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin: 8px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover { background: #45a049; }
+        button.secondary { background: #2196F3; }
+        button.secondary:hover { background: #1e88e5; }
+        input {
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background: #1a1a1a;
+            color: white;
+            width: calc(100% - 26px);
+            margin-bottom: 8px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .divider {
+            margin: 15px 0;
+            color: #888;
+            font-size: 14px;
+        }
+        #status {
+            margin-top: 15px;
+            color: #ffeb3b;
+            font-weight: bold;
+            word-break: break-all;
+        }
+        #game-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        #hud {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            margin-bottom: 10px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .p1-score { color: #4CAF50; }
+        .p2-score { color: #2196F3; }
+        canvas {
+            background: #262626;
+            border: 4px solid #444;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        .controls-hint {
+            margin-top: 10px;
+            color: #aaa;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
 
+    <!-- МЕНЮ ПОДКЛЮЧЕНИЯ -->
+    <div id="menu">
+        <h1>Танчики Онлайн</h1>
+        <button onclick="createGame()">Создать комнату (Хост)</button>
+        
+        <div class="divider">— ИЛИ —</div>
+        
+        <input type="text" id="join-id" placeholder="Введите код друга">
+        <button class="secondary" onclick="joinGame()">Подключиться к другу</button>
+        
+        <div id="status">Выберите режим для старта</div>
+    </div>
+
+    <!-- ИГРОВОЕ ПОЛЕ -->
+    <div id="game-container">
+        <div id="hud">
+            <span class="p1-score" id="score1">Зеленый (Хост): 0</span>
+            <span class="p2-score" id="score2">Синий (Гость): 0</span>
+        </div>
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div class="controls-hint">Управление: <b>WASD</b> или <b>Стрелки</b> — движение | <b>Пробел</b> — выстрел</div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('status');
+
+    let peer = null;
+    let conn = null;
+    let isHost = false;
+    let gameRunning = false;
+
+    // Препятствия на карте (X, Y, Ширина, Высота)
+    const walls = [
+        { x: 180, y: 120, w: 40, h: 360 },
+        { x: 580, y: 120, w: 40, h: 360 },
+        { x: 320, y: 280, w: 160, h: 40 },
+        { x: 380, y: 80,  w: 40, h: 100 },
+        { x: 380, y: 420, w: 40, h: 100 }
+    ];
+
+    // Состояние игры (рассчитывается Хостом и передается Гостю)
+    let state = {
+        p1: { x: 80, y: 300, angle: 0, hp: 100, score: 0 },
+        p2: { x: 720, y: 300, angle: Math.PI, hp: 100, score: 0 },
+        bullets: []
+    };
+
+    // Управление локального игрока
+    const keys = { up: false, down: false, left: false, right: false, shoot: false };
+    // Управление второго игрока (получаем по сети)
+    let remoteKeys = { up: false, down: false, left: false, right: false, shoot: false };
+
+    let cooldown1 = 0;
+    let cooldown2 = 0;
+
+    // Генерация короткого кода комнаты
+    function generateCode() {
+        return Math.random().toString(36).substring(2, 7).toUpperCase();
+    }
+
+    // 1. Логика Хоста
+    function createGame() {
+        const roomCode = "TANK-" + generateCode();
+        statusText.innerText = "Генерация комнаты...";
+        
+        peer = new Peer(roomCode);
+        
+        peer.on('open', (id) => {
+            const shortCode = id.replace("TANK-", "");
+            statusText.innerHTML = `Код вашей комнаты: <br><span style="font-size: 26px; color: #4CAF50;">${shortCode}</span><br><br>Отправьте этот код другу и ждите подключения...`;
+            isHost = true;
+        });
+
+        peer.on('connection', (connection) => {
+            conn = connection;
+            conn.on('open', () => {
+                startGame();
+            });
+            conn.on('data', (data) => {
+                if (data.type === 'input') {
+                    remoteKeys = data.keys;
+                }
+            });
+            conn.on('close', () => alert("Друг отключился от игры!"));
+        });
+
+        peer.on('error', (err) => {
+            statusText.innerText = "Ошибка сети: " + err.type;
+        });
+    }
+
+    // 2. Логика Гостя
+    function joinGame() {
+        const inputCode = document.getElementById('join-id').value.trim().toUpperCase();
+        if (!inputCode) {
+            statusText.innerText = "Пожалуйста, введите код!";
+            return;
+        }
+
+        statusText.innerText = "Подключение к комнате...";
+        peer = new Peer();
+
+        peer.on('open', () => {
+            conn = peer.connect("TANK-" + inputCode);
+            
+            conn.on('open', () => {
+                isHost = false;
+                startGame();
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'state') {
+                    state = data.state;
+                    updateHUD();
+                }
+            });
+
+            conn.on('close', () => alert("Хост закрыл игру!"));
+        });
+
+        peer.on('error', (err) => {
+            statusText.innerText = "Не удалось найти комнату. Проверьте код!";
+        });
+    }
+
+    // Запуск игрового экрана
+    function startGame() {
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('game-container').style.display = 'flex';
+        gameRunning = true;
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Отслеживание нажатий клавиш
+    window.addEventListener('keydown', (e) => handleKey(e.code, true));
+    window.addEventListener('keyup', (e) => handleKey(e.code, false));
+
+    function handleKey(code, isPressed) {
+        if (code === 'KeyW' || code === 'ArrowUp') keys.up = isPressed;
+        if (code === 'KeyS' || code === 'ArrowDown') keys.down = isPressed;
+        if (code === 'KeyA' || code === 'ArrowLeft') keys.left = isPressed;
+        if (code === 'KeyD' || code === 'ArrowRight') keys.right = isPressed;
+        if (code === 'Space') keys.shoot = isPressed;
+
+        // Если мы Гость — сразу отправляем свои нажатия Хосту
+        if (!isHost && conn && conn.open) {
+            conn.send({ type: 'input', keys: keys });
+        }
+    }
+
+    // Проверка столкновений со стенами и границами экрана
+    function checkWallCollision(x, y, radius) {
+        if (x - radius < 0 || x + radius > canvas.width || y - radius < 0 || y + radius > canvas.height) {
+            return true;
+        }
+        for (let w of walls) {
+            if (x + radius > w.x && x - radius < w.x + w.w &&
+                y + radius > w.y && y - radius < w.y + w.h) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Движение танка и стрельба
+    function moveTank(tank, input, ownerId) {
+        const speed = 3;
+        const rotSpeed = 0.06;
+
+        if (input.left) tank.angle -= rotSpeed;
+        if (input.right) tank.angle += rotSpeed;
+
+        let moveStep = 0;
+        if (input.up) moveStep = speed;
+        if (input.down) moveStep = -speed * 0.7;
+
+        if (moveStep !== 0) {
+            const nx = tank.x + Math.cos(tank.angle) * moveStep;
+            const ny = tank.y + Math.sin(tank.angle) * moveStep;
+            // Проверяем отдельно оси X и Y, чтобы танк мягко скользил вдоль стен
+            if (!checkWallCollision(nx, tank.y, 18)) tank.x = nx;
+            if (!checkWallCollision(tank.x, ny, 18)) tank.y = ny;
+        }
+
+        // Выстрел
+        let cd = (ownerId === 1) ? cooldown1 : cooldown2;
+        if (cd > 0) cd--;
+
+        if (input.shoot && cd === 0) {
+            state.bullets.push({
+                x: tank.x + Math.cos(tank.angle) * 26,
+                y: tank.y + Math.sin(tank.angle) * 26,
+                vx: Math.cos(tank.angle) * 8,
+                vy: Math.sin(tank.angle) * 8,
+                owner: ownerId
+            });
+            cd = 35; // Задержка между выстрелами (в кадрах)
+        }
+
+        if (ownerId === 1) cooldown1 = cd;
+        else cooldown2 = cd;
+    }
+
+    // Физика игры (выполняется только у Хоста)
+    function updatePhysics() {
+        moveTank(state.p1, keys, 1);
+        moveTank(state.p2, remoteKeys, 2);
+
+        for (let i = state.bullets.length - 1; i >= 0; i--) {
+            let b = state.bullets[i];
+            b.x += b.vx;
+            b.y += b.vy;
+
+            // Удаление пули при попадании в стену
+            if (checkWallCollision(b.x, b.y, 4)) {
+                state.bullets.splice(i, 1);
+                continue;
+            }
+
+            // Попадание в Игрока 1 (Хоста)
+            if (b.owner !== 1 && Math.hypot(b.x - state.p1.x, b.y - state.p1.y) < 20) {
+                state.p1.hp -= 25;
+                state.bullets.splice(i, 1);
+                if (state.p1.hp <= 0) {
+                    state.p2.score++;
+                    resetRound();
+                    break;
+                }
+                continue;
+            }
+
+            // Попадание в Игрока 2 (Гостя)
+            if (b.owner !== 2 && Math.hypot(b.x - state.p2.x, b.y - state.p2.y) < 20) {
+                state.p2.hp -= 25;
+                state.bullets.splice(i, 1);
+                if (state.p2.hp <= 0) {
+                    state.p1.score++;
+                    resetRound();
+                    break;
+                }
+                continue;
+            }
+        }
+
+        updateHUD();
+        if (conn && conn.open) {
+            conn.send({ type: 'state', state: state });
+        }
+    }
+
+    // Сброс позиций после уничтожения танка
+    function resetRound() {
+        state.p1.x = 80;  state.p1.y = 300; state.p1.angle = 0;       state.p1.hp = 100;
+        state.p2.x = 720; state.p2.y = 300; state.p2.angle = Math.PI; state.p2.hp = 100;
+        state.bullets = [];
+    }
+
+    function updateHUD() {
+        document.getElementById('score1').innerText = `Зеленый (Хост): ${state.p1.score}`;
+        document.getElementById('score2').innerText = `Синий (Гость): ${state.p2.score}`;
+    }
+
+    // Отрисовка танка
+    function drawTank(tank, color) {
+        ctx.save();
+        ctx.translate(tank.x, tank.y);
+        ctx.rotate(tank.angle);
+
+        // Гусеницы
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-20, -20, 40, 8);
+        ctx.fillRect(-20, 12, 40, 8);
+
+        // Корпус
+        ctx.fillStyle = color;
+        ctx.fillRect(-16, -14, 32, 28);
+
+        // Башня
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Пушка
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(0, -3, 26, 6);
+
+        ctx.restore();
+
+        // Полоска здоровья (HP)
+        ctx.fillStyle = '#444';
+        ctx.fillRect(tank.x - 20, tank.y - 34, 40, 6);
+        ctx.fillStyle = tank.hp > 50 ? '#4CAF50' : (tank.hp > 25 ? '#ff9800' : '#f44336');
+        ctx.fillRect(tank.x - 20, tank.y - 34, (tank.hp / 100) * 40, 6);
+    }
+
+    // Отрисовка кадра
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Рисуем стены
+        ctx.fillStyle = '#555';
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        for (let w of walls) {
+            ctx.fillRect(w.x, w.y, w.w, w.h);
+            ctx.strokeRect(w.x, w.y, w.w, w.h);
+        }
+
+        // Рисуем танки
+        drawTank(state.p1, '#4CAF50'); // Хост - Зеленый
+        drawTank(state.p2, '#2196F3'); // Гость - Синий
+
+        // Рисуем пули
+        ctx.fillStyle = '#ffeb3b';
+        for (let b of state.bullets) {
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Главный цикл
+    function gameLoop() {
+        if (!gameRunning) return;
+        if (isHost) updatePhysics();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+</script>
+</body>
+</html>
