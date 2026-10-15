@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Танчики Онлайн PRO</title>
+    <title>Танчики 3D Онлайн + Боты</title>
+    <!-- PeerJS для мультиплеера -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- Three.js для 3D графики -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -15,7 +18,7 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #121212;
+            background-color: #0d0d0d;
             color: #ffffff;
             font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
             display: flex;
@@ -26,24 +29,24 @@
             overflow: hidden;
             touch-action: none;
         }
-        /* Стили Меню */
+        /* Меню */
         #menu {
-            background: #1e1e1e;
-            padding: 25px;
+            background: #1a1a1a;
+            padding: 22px;
             border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.9);
             text-align: center;
-            max-width: 400px;
+            max-width: 420px;
             width: 92%;
             border: 1px solid #333;
-            z-index: 10;
+            z-index: 20;
         }
-        h1 { margin: 0 0 15px 0; color: #4CAF50; font-size: 28px; text-transform: uppercase; letter-spacing: 1px; }
-        .input-group { margin-bottom: 15px; text-align: left; }
-        .input-group label { display: block; font-size: 13px; color: #aaa; margin-bottom: 5px; }
-        input {
-            padding: 12px;
-            font-size: 16px;
+        h1 { margin: 0 0 12px 0; color: #4CAF50; font-size: 26px; text-transform: uppercase; letter-spacing: 1px; }
+        .input-group { margin-bottom: 12px; text-align: left; }
+        .input-group label { display: block; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+        input, select {
+            padding: 11px;
+            font-size: 15px;
             border-radius: 8px;
             border: 1px solid #444;
             background: #111;
@@ -52,27 +55,42 @@
             text-align: center;
             outline: none;
         }
-        input:focus { border-color: #4CAF50; }
+        input:focus, select:focus { border-color: #4CAF50; }
         #join-id { text-transform: uppercase; font-weight: bold; letter-spacing: 2px; }
+        
+        .bot-selector {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #252525;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #383838;
+        }
+        .bot-selector span { font-size: 14px; font-weight: bold; color: #ff9800; }
+        .bot-selector select { width: 140px; padding: 6px; font-weight: bold; }
+
         button {
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 14px;
-            margin: 6px 0;
+            padding: 12px;
+            margin: 5px 0;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             width: 100%;
             transition: transform 0.1s, background 0.2s;
         }
         button:active { transform: scale(0.98); }
+        button.solo-btn { background: #ff9800; color: #111; }
         button.secondary { background: #2196F3; }
-        .divider { margin: 12px 0; color: #666; font-size: 12px; text-transform: uppercase; }
-        #status { margin-top: 12px; color: #ffeb3b; font-size: 14px; min-height: 20px; word-break: break-word; }
+        .divider { margin: 10px 0; color: #666; font-size: 11px; text-transform: uppercase; }
+        #status { margin-top: 10px; color: #ffeb3b; font-size: 13px; min-height: 18px; word-break: break-word; }
 
-        /* Игровой интерфейс */
+        /* Игровой контейнер */
         #game-container {
             display: none;
             flex-direction: column;
@@ -80,61 +98,97 @@
             justify-content: flex-start;
             width: 100%;
             height: 100vh;
-            padding-top: 8px;
+            padding-top: 6px;
         }
         #hud {
             display: flex;
-            justify-content: space-between;
+            flex-wrap: wrap;
+            justify-content: space-around;
             align-items: center;
-            width: 95%;
-            max-width: 800px;
-            background: #1e1e1e;
-            padding: 8px 16px;
+            width: 96%;
+            max-width: 900px;
+            background: #1a1a1a;
+            padding: 8px 12px;
             border-radius: 8px;
             margin-bottom: 6px;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
             border: 1px solid #333;
+            gap: 8px;
+            z-index: 10;
         }
-        .p1-hud { color: #4CAF50; }
-        .p2-hud { color: #2196F3; }
-        
-        /* Адаптивный Canvas */
+        .score-badge { padding: 3px 8px; border-radius: 4px; background: #262626; }
+
+        /* 3D Сцена и плавающие имена */
         #canvas-wrapper {
             position: relative;
-            width: 95%;
-            max-width: 800px;
+            width: 96%;
+            max-width: 900px;
             aspect-ratio: 4 / 3;
             max-height: 62vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            border: 3px solid #3a3a3a;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0,0,0,0.9);
+            background: #111;
         }
-        canvas {
-            width: 100%;
+        #canvas-wrapper canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+        #labels-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .tank-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            text-align: center;
+            white-space: nowrap;
+            transition: opacity 0.1s;
+        }
+        .tank-label .name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 3px #000, 0 0 5px #000;
+            margin-bottom: 2px;
+        }
+        .tank-label .hp-bg {
+            width: 42px;
+            height: 5px;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid #000;
+            border-radius: 3px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .tank-label .hp-fill {
             height: 100%;
-            background: #1c1c1c;
-            border: 3px solid #444;
-            border-radius: 6px;
-            box-shadow: 0 0 25px rgba(0,0,0,0.9);
-            object-fit: contain;
+            background: #4CAF50;
+            width: 100%;
         }
 
-        /* Мобильное управление (Геймпад) */
+        /* Мобильный геймпад */
         #mobile-controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
             width: 95%;
-            max-width: 800px;
+            max-width: 850px;
             margin-top: auto;
-            margin-bottom: 15px;
-            padding: 5px 10px;
+            margin-bottom: 12px;
+            padding: 4px 10px;
+            z-index: 10;
         }
         .d-pad {
             display: grid;
-            grid-template-columns: repeat(3, 56px);
-            grid-template-rows: repeat(2, 56px);
+            grid-template-columns: repeat(3, 54px);
+            grid-template-rows: repeat(2, 54px);
             gap: 6px;
         }
         .ctrl-btn {
@@ -142,43 +196,38 @@
             border: 2px solid rgba(255, 255, 255, 0.25);
             color: white;
             border-radius: 12px;
-            font-size: 22px;
+            font-size: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            user-select: none;
         }
         .ctrl-btn.active {
-            background: rgba(76, 175, 80, 0.5);
+            background: rgba(76, 175, 80, 0.55);
             border-color: #4CAF50;
-            transform: scale(0.94);
+            transform: scale(0.93);
         }
         .fire-btn {
-            width: 90px;
-            height: 90px;
+            width: 86px;
+            height: 86px;
             border-radius: 50%;
-            background: rgba(244, 67, 54, 0.35);
+            background: rgba(244, 67, 54, 0.4);
             border: 3px solid #f44336;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.35);
         }
         .fire-btn.active {
-            background: rgba(244, 67, 54, 0.8);
+            background: rgba(244, 67, 54, 0.85);
             transform: scale(0.92);
         }
-        .pc-hint {
-            font-size: 12px;
-            color: #777;
-            margin-top: 4px;
-        }
+        .pc-hint { font-size: 12px; color: #777; margin-top: 4px; }
         @media (min-width: 850px) and (pointer: fine) {
-            #canvas-wrapper { max-height: 75vh; }
+            #canvas-wrapper { max-height: 74vh; }
         }
     </style>
 </head>
@@ -186,38 +235,44 @@
 
     <!-- МЕНЮ -->
     <div id="menu">
-        <h1>Танчики PRO</h1>
+        <h1>Танчики 3D</h1>
         
         <div class="input-group">
             <label>Ваш игровой никнейм:</label>
             <input type="text" id="player-name" placeholder="Введите имя..." maxlength="12" value="Танкист">
         </div>
 
-        <button onclick="createGame()">Создать комнату (Хост)</button>
+        <div class="bot-selector">
+            <span>🤖 ИИ-Боты на карте:</span>
+            <select id="bot-count">
+                <option value="0">Без ботов (0)</option>
+                <option value="1" selected>1 Бот</option>
+                <option value="2">2 Бота</option>
+                <option value="3">3 Бота (Хаос)</option>
+            </select>
+        </div>
+
+        <button class="solo-btn" onclick="startSoloGame()">Играть одному (с ботами)</button>
+        <button onclick="createGame()">Создать онлайн-комнату (Хост)</button>
         
-        <div class="divider">— или войти к другу —</div>
+        <div class="divider">— или подключиться к другу —</div>
         
         <input type="text" id="join-id" placeholder="КОД КОМНАТЫ">
-        <button class="secondary" onclick="joinGame()">Подключиться</button>
+        <button class="secondary" onclick="joinGame()">Войти в комнату</button>
         
-        <div id="status">Готов к бою</div>
+        <div id="status">Выберите режим игры</div>
     </div>
 
     <!-- ИГРА -->
     <div id="game-container">
-        <div id="hud">
-            <div class="p1-hud"><span id="name1">Хост</span>: <span id="score1">0</span></div>
-            <div style="color:#888; font-size:12px;">ДО 5 ПОБЕД</div>
-            <div class="p2-hud"><span id="name2">Гость</span>: <span id="score2">0</span></div>
-        </div>
+        <div id="hud"></div>
 
         <div id="canvas-wrapper">
-            <canvas id="canvas" width="800" height="600"></canvas>
+            <div id="labels-container"></div>
         </div>
 
-        <div class="pc-hint">На ПК: WASD / Стрелки + Пробел | На телефоне: Кнопки ниже</div>
+        <div class="pc-hint">ПК: WASD / Стрелки + Пробел | Телефон: Сенсорные кнопки ниже</div>
 
-        <!-- Сенсорные кнопки для телефона -->
         <div id="mobile-controls">
             <div class="d-pad">
                 <div></div>
@@ -232,39 +287,45 @@
     </div>
 
 <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const ARENA_W = 800;
+    const ARENA_H = 600;
     const statusText = document.getElementById('status');
 
     let peer = null;
     let conn = null;
     let isHost = false;
+    let isSolo = false;
     let gameRunning = false;
-    let myName = "Танкист";
+    let myTankId = 'p1';
 
-    // Локальные и сетевые клавиши
     const keys = { up: false, down: false, left: false, right: false, shoot: false };
     let remoteKeys = { up: false, down: false, left: false, right: false, shoot: false };
+    let cooldowns = {};
+    let aiState = {};
+    let powerupTimer = 250;
 
-    let cooldown1 = 0;
-    let cooldown2 = 0;
-    let powerupTimer = 300;
+    // Точки спавна по углам и краям карты
+    const SPAWN_POINTS = [
+        { x: 70,  y: 300, angle: 0 },
+        { x: 730, y: 300, angle: Math.PI },
+        { x: 400, y: 65,  angle: Math.PI / 2 },
+        { x: 400, y: 535, angle: -Math.PI / 2 },
+        { x: 70,  y: 70,  angle: Math.PI / 4 }
+    ];
 
-    // Состояние игры
+    // Глобальное состояние (синхронизируется по сети)
     let state = {
-        p1: { x: 80, y: 300, angle: 0, hp: 100, score: 0, name: "Хост", shield: 0, speedBoost: 0 },
-        p2: { x: 720, y: 300, angle: Math.PI, hp: 100, score: 0, name: "Гость", shield: 0, speedBoost: 0 },
+        tanks: [],
         bullets: [],
         walls: [],
         powerups: [],
         particles: []
     };
 
-    // Генерация карты (1 - Кирпич разрушаемый, 2 - Сталь вечная)
+    // --- ИНИЦИАЛИЗАЦИЯ КАРТЫ И ТАНКОВ ---
     function initMap() {
         state.walls = [];
         const layout = [
-            // Стальные блоки в центре и по углам
             { x: 380, y: 260, w: 40, h: 80, type: 2, hp: 999 },
             { x: 160, y: 120, w: 40, h: 80, type: 2, hp: 999 },
             { x: 160, y: 400, w: 40, h: 80, type: 2, hp: 999 },
@@ -272,7 +333,6 @@
             { x: 600, y: 400, w: 40, h: 80, type: 2, hp: 999 },
         ];
 
-        // Добавляем кирпичные стены рядами
         for (let y = 200; y < 400; y += 40) {
             layout.push({ x: 160, y: y, w: 40, h: 40, type: 1, hp: 3 });
             layout.push({ x: 600, y: y, w: 40, h: 40, type: 1, hp: 3 });
@@ -283,18 +343,46 @@
                 layout.push({ x: x, y: 420, w: 40, h: 40, type: 1, hp: 3 });
             }
         }
-        for (let y = 60; y <= 180; y += 40) {
-            layout.push({ x: 380, y: y, w: 40, h: 40, type: 1, hp: 3 });
-            layout.push({ x: 380, y: 500 - (y - 60), w: 40, h: 40, type: 1, hp: 3 });
-        }
-
         state.walls = layout;
         state.powerups = [];
         state.bullets = [];
     }
 
-    function generateCode() {
-        return Math.random().toString(36).substring(2, 7).toUpperCase();
+    function setupPlayers(hasGuest, botCount, hostName, guestName = "Гость") {
+        state.tanks = [];
+        cooldowns = {};
+        aiState = {};
+
+        // Игрок 1 (Хост)
+        state.tanks.push({
+            id: 'p1', name: hostName, color: '#4CAF50', isBot: false,
+            x: SPAWN_POINTS[0].x, y: SPAWN_POINTS[0].y, angle: SPAWN_POINTS[0].angle,
+            hp: 100, score: 0, shield: 0, speedBoost: 0
+        });
+
+        // Игрок 2 (Гость онлайн)
+        if (hasGuest) {
+            state.tanks.push({
+                id: 'p2', name: guestName, color: '#2196F3', isBot: false,
+                x: SPAWN_POINTS[1].x, y: SPAWN_POINTS[1].y, angle: SPAWN_POINTS[1].angle,
+                hp: 100, score: 0, shield: 0, speedBoost: 0
+            });
+        }
+
+        // Боты
+        const botColors = ['#e91e63', '#ff9800', '#9c27b0'];
+        const botNames = ['Бот Альфа', 'Бот Бета', 'Бот Гамма'];
+        for (let i = 0; i < botCount; i++) {
+            const spIndex = hasGuest ? (i + 2) % SPAWN_POINTS.length : (i + 1) % SPAWN_POINTS.length;
+            const sp = SPAWN_POINTS[spIndex];
+            const botId = 'bot' + (i + 1);
+            state.tanks.push({
+                id: botId, name: botNames[i], color: botColors[i], isBot: true,
+                x: sp.x, y: sp.y, angle: sp.angle,
+                hp: 100, score: 0, shield: 0, speedBoost: 0
+            });
+            aiState[botId] = { dirTimer: 0, turnDir: 1 };
+        }
     }
 
     function getMyName() {
@@ -302,29 +390,47 @@
         return val ? val.substring(0, 12) : "Танкист";
     }
 
-    // --- СЕТЕВАЯ ЧАСТЬ (PeerJS) ---
+    function getBotCount() {
+        return parseInt(document.getElementById('bot-count').value, 10) || 0;
+    }
+
+    // --- РЕЖИМЫ ЗАПУСКА ---
+    function startSoloGame() {
+        isHost = true;
+        isSolo = true;
+        myTankId = 'p1';
+        let bots = getBotCount();
+        if (bots === 0) bots = 1; // В одиночном режиме минимум 1 бот
+        initMap();
+        setupPlayers(false, bots, getMyName());
+        startGame();
+    }
+
     function createGame() {
-        myName = getMyName();
-        state.p1.name = myName;
-        const roomCode = "TANKPRO-" + generateCode();
-        statusText.innerText = "Создание сервера...";
+        const hostName = getMyName();
+        const roomCode = "T3D-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+        statusText.innerText = "Создание 3D-сервера...";
 
         peer = new Peer(roomCode);
         peer.on('open', (id) => {
-            const shortCode = id.replace("TANKPRO-", "");
+            const shortCode = id.replace("T3D-", "");
             statusText.innerHTML = `Код комнаты: <b style="font-size:22px; color:#4CAF50;">${shortCode}</b><br>Ждем подключения друга...`;
             isHost = true;
+            isSolo = false;
+            myTankId = 'p1';
             initMap();
         });
 
         peer.on('connection', (connection) => {
             conn = connection;
             conn.on('open', () => {
+                setupPlayers(true, getBotCount(), hostName, "Гость");
                 startGame();
             });
             conn.on('data', (data) => {
                 if (data.type === 'join') {
-                    state.p2.name = data.name;
+                    const p2 = state.tanks.find(t => t.id === 'p2');
+                    if (p2) p2.name = data.name;
                     updateHUD();
                 } else if (data.type === 'input') {
                     remoteKeys = data.keys;
@@ -332,21 +438,23 @@
             });
             conn.on('close', () => { alert("Друг отключился!"); location.reload(); });
         });
-        peer.on('error', (err) => statusText.innerText = "Ошибка: " + err.type);
+        peer.on('error', (err) => statusText.innerText = "Ошибка сети: " + err.type);
     }
 
     function joinGame() {
-        myName = getMyName();
+        const guestName = getMyName();
         const code = document.getElementById('join-id').value.trim().toUpperCase();
         if (!code) { statusText.innerText = "Введите код комнаты!"; return; }
 
-        statusText.innerText = "Подключение к Хосту...";
+        statusText.innerText = "Подключение к 3D-арене...";
         peer = new Peer();
         peer.on('open', () => {
-            conn = peer.connect("TANKPRO-" + code);
+            conn = peer.connect("T3D-" + code);
             conn.on('open', () => {
                 isHost = false;
-                conn.send({ type: 'join', name: myName });
+                isSolo = false;
+                myTankId = 'p2';
+                conn.send({ type: 'join', name: guestName });
                 startGame();
             });
             conn.on('data', (data) => {
@@ -355,7 +463,7 @@
                     updateHUD();
                 }
             });
-            conn.on('close', () => { alert("Связь с Хостом потеряна!"); location.reload(); });
+            conn.on('close', () => { alert("Хост закрыл игру!"); location.reload(); });
         });
         peer.on('error', () => statusText.innerText = "Комната не найдена!");
     }
@@ -363,12 +471,13 @@
     function startGame() {
         document.getElementById('menu').style.display = 'none';
         document.getElementById('game-container').style.display = 'flex';
+        initThreeJS();
         updateHUD();
         gameRunning = true;
         requestAnimationFrame(gameLoop);
     }
 
-    // --- УПРАВЛЕНИЕ (Клавиатура + Сенсорный экран) ---
+    // --- УПРАВЛЕНИЕ ---
     function sendInputIfGuest() {
         if (!isHost && conn && conn.open) {
             conn.send({ type: 'input', keys: keys });
@@ -387,57 +496,110 @@
         sendInputIfGuest();
     }
 
-    // Настройка мобильных кнопок (Мультитач)
     function bindTouchButton(btnId, keyName) {
         const btn = document.getElementById(btnId);
-        
-        const press = (e) => {
-            e.preventDefault();
-            keys[keyName] = true;
-            btn.classList.add('active');
-            sendInputIfGuest();
-        };
-        const release = (e) => {
-            e.preventDefault();
-            keys[keyName] = false;
-            btn.classList.remove('active');
-            sendInputIfGuest();
-        };
-
+        const press = (e) => { e.preventDefault(); keys[keyName] = true; btn.classList.add('active'); sendInputIfGuest(); };
+        const release = (e) => { e.preventDefault(); keys[keyName] = false; btn.classList.remove('active'); sendInputIfGuest(); };
         btn.addEventListener('touchstart', press, { passive: false });
         btn.addEventListener('touchend', release, { passive: false });
         btn.addEventListener('touchcancel', release, { passive: false });
-        
-        // Поддержка кликов мышкой по кнопкам
         btn.addEventListener('mousedown', press);
         btn.addEventListener('mouseup', release);
         btn.addEventListener('mouseleave', release);
     }
-
     bindTouchButton('btn-up', 'up');
     bindTouchButton('btn-down', 'down');
     bindTouchButton('btn-left', 'left');
     bindTouchButton('btn-right', 'right');
     bindTouchButton('btn-shoot', 'shoot');
 
-    // --- ФИЗИКА И ИГРОВАЯ ЛОГИКА (На стороне Хоста) ---
+    // --- ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ БОТОВ ---
+    function computeBotInput(bot) {
+        const input = { up: false, down: false, left: false, right: false, shoot: false };
+        let ai = aiState[bot.id] || { dirTimer: 0, turnDir: 1 };
+
+        // Ищем ближайшую живую цель (или бонус, если мало HP)
+        let target = null;
+        let minDist = Infinity;
+
+        if (bot.hp < 50 && state.powerups.length > 0) {
+            for (let p of state.powerups) {
+                let d = Math.hypot(p.x - bot.x, p.y - bot.y);
+                if (d < minDist) { minDist = d; target = p; }
+            }
+        }
+
+        if (!target) {
+            for (let other of state.tanks) {
+                if (other.id === bot.id || other.hp <= 0) continue;
+                let d = Math.hypot(other.x - bot.x, other.y - bot.y);
+                if (d < minDist) { minDist = d; target = other; }
+            }
+        }
+
+        if (!target) return input;
+
+        // Вычисляем угол на цель
+        const desiredAngle = Math.atan2(target.y - bot.y, target.x - bot.x);
+        let diff = desiredAngle - bot.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        // Проверяем, нет ли стены прямо перед носом бота
+        const lookAheadX = bot.x + Math.cos(bot.angle) * 38;
+        const lookAheadY = bot.y + Math.sin(bot.angle) * 38;
+        const blocked = checkTankWallCollision(lookAheadX, lookAheadY, 16);
+
+        if (blocked) {
+            ai.dirTimer = 25;
+            input.down = true;
+            if (ai.turnDir > 0) input.right = true;
+            else input.left = true;
+        } else if (ai.dirTimer > 0) {
+            ai.dirTimer--;
+            input.up = true;
+            if (ai.turnDir > 0) input.right = true;
+            else input.left = true;
+        } else {
+            if (Math.abs(diff) > 0.12) {
+                if (diff > 0) input.right = true;
+                else input.left = true;
+            }
+            // Подъезжаем к цели или собираем бонус
+            if (minDist > 160 || target.type) {
+                input.up = true;
+            } else if (minDist < 90) {
+                input.down = true;
+            }
+            if (Math.random() < 0.02) ai.turnDir *= -1;
+        }
+
+        // Стреляем, если смотрим примерно на врага
+        if (!target.type && Math.abs(diff) < 0.28 && minDist < 550) {
+            input.shoot = true;
+        }
+
+        aiState[bot.id] = ai;
+        return input;
+    }
+
+    // --- ФИЗИКА И ЛОГИКА ИГРЫ ---
     function spawnParticles(x, y, color, count) {
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 1 + Math.random() * 4;
+            const speed = 1.5 + Math.random() * 4.5;
             state.particles.push({
                 x: x, y: y,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed,
-                life: 15 + Math.random() * 15,
-                color: color,
-                size: 2 + Math.random() * 3
+                life: 14 + Math.random() * 12,
+                color: color
             });
         }
     }
 
     function checkTankWallCollision(x, y, radius) {
-        if (x - radius < 0 || x + radius > canvas.width || y - radius < 0 || y + radius > canvas.height) return true;
+        if (x - radius < 0 || x + radius > ARENA_W || y - radius < 0 || y + radius > ARENA_H) return true;
         for (let w of state.walls) {
             if (x + radius > w.x && x - radius < w.x + w.w && y + radius > w.y && y - radius < w.y + w.h) {
                 return true;
@@ -446,11 +608,36 @@
         return false;
     }
 
-    function moveTank(tank, input, ownerId) {
+    function respawnTank(tank) {
+        // Выбираем самую свободную точку спавна
+        let bestSp = SPAWN_POINTS[0];
+        let maxMinDist = -1;
+        for (let sp of SPAWN_POINTS) {
+            let nearest = 9999;
+            for (let other of state.tanks) {
+                if (other.id !== tank.id) {
+                    let d = Math.hypot(sp.x - other.x, sp.y - other.y);
+                    if (d < nearest) nearest = d;
+                }
+            }
+            if (nearest > maxMinDist) {
+                maxMinDist = nearest;
+                bestSp = sp;
+            }
+        }
+        tank.x = bestSp.x;
+        tank.y = bestSp.y;
+        tank.angle = bestSp.angle;
+        tank.hp = 100;
+        tank.shield = 120; // 2 секунды защиты после возрождения
+        tank.speedBoost = 0;
+    }
+
+    function moveTank(tank, input) {
         if (tank.shield > 0) tank.shield--;
         if (tank.speedBoost > 0) tank.speedBoost--;
 
-        const baseSpeed = tank.speedBoost > 0 ? 4.3 : 2.8;
+        const baseSpeed = tank.speedBoost > 0 ? 4.2 : (tank.isBot ? 2.5 : 2.9);
         const rotSpeed = tank.speedBoost > 0 ? 0.075 : 0.055;
 
         if (input.left) tank.angle -= rotSpeed;
@@ -472,43 +659,40 @@
             let p = state.powerups[i];
             if (Math.hypot(tank.x - p.x, tank.y - p.y) < 28) {
                 if (p.type === 'heal') tank.hp = Math.min(100, tank.hp + 40);
-                if (p.type === 'shield') tank.shield = 300; // 5 секунд щита
-                if (p.type === 'speed') tank.speedBoost = 360; // 6 секунд ускорения
+                if (p.type === 'shield') tank.shield = 300;
+                if (p.type === 'speed') tank.speedBoost = 360;
                 spawnParticles(p.x, p.y, '#ffffff', 12);
                 state.powerups.splice(i, 1);
             }
         }
 
         // Стрельба
-        let cd = (ownerId === 1) ? cooldown1 : cooldown2;
+        let cd = cooldowns[tank.id] || 0;
         if (cd > 0) cd--;
 
         if (input.shoot && cd === 0) {
-            const bx = tank.x + Math.cos(tank.angle) * 25;
-            const by = tank.y + Math.sin(tank.angle) * 25;
+            const bx = tank.x + Math.cos(tank.angle) * 26;
+            const by = tank.y + Math.sin(tank.angle) * 26;
             state.bullets.push({
                 x: bx, y: by,
                 vx: Math.cos(tank.angle) * 8.5,
                 vy: Math.sin(tank.angle) * 8.5,
-                owner: ownerId,
-                bounces: 1 // 1 рикошет разрешен
+                owner: tank.id,
+                bounces: 1
             });
             spawnParticles(bx, by, '#ffeb3b', 5);
-            cd = tank.speedBoost > 0 ? 20 : 35;
+            cd = tank.speedBoost > 0 ? 22 : (tank.isBot ? 45 : 34);
         }
-
-        if (ownerId === 1) cooldown1 = cd;
-        else cooldown2 = cd;
+        cooldowns[tank.id] = cd;
     }
 
     function spawnPowerup() {
         if (state.powerups.length >= 3) return;
         const types = ['heal', 'shield', 'speed'];
         const type = types[Math.floor(Math.random() * types.length)];
-        
         for (let attempt = 0; attempt < 20; attempt++) {
-            const rx = 60 + Math.random() * (canvas.width - 120);
-            const ry = 60 + Math.random() * (canvas.height - 120);
+            const rx = 60 + Math.random() * (ARENA_W - 120);
+            const ry = 60 + Math.random() * (ARENA_H - 120);
             if (!checkTankWallCollision(rx, ry, 25)) {
                 state.powerups.push({ x: rx, y: ry, type: type });
                 break;
@@ -517,284 +701,414 @@
     }
 
     function updatePhysics() {
-        moveTank(state.p1, keys, 1);
-        moveTank(state.p2, remoteKeys, 2);
+        for (let tank of state.tanks) {
+            let input = keys;
+            if (tank.id === 'p2') input = remoteKeys;
+            else if (tank.isBot) input = computeBotInput(tank);
+            moveTank(tank, input);
+        }
 
-        // Таймер бонусов
         powerupTimer--;
         if (powerupTimer <= 0) {
             spawnPowerup();
-            powerupTimer = 350 + Math.random() * 200;
+            powerupTimer = 300 + Math.random() * 200;
         }
 
-        // Обновление частиц
         for (let i = state.particles.length - 1; i >= 0; i--) {
             let pt = state.particles[i];
-            pt.x += pt.vx;
-            pt.y += pt.vy;
-            pt.life--;
+            pt.x += pt.vx; pt.y += pt.vy; pt.life--;
             if (pt.life <= 0) state.particles.splice(i, 1);
         }
 
-        // Обновление пуль
         for (let i = state.bullets.length - 1; i >= 0; i--) {
             let b = state.bullets[i];
-            let prevX = b.x;
-            let prevY = b.y;
-            b.x += b.vx;
-            b.y += b.vy;
-
+            let prevX = b.x, prevY = b.y;
+            b.x += b.vx; b.y += b.vy;
             let destroyed = false;
 
-            // Отскок от границ экрана
-            if (b.x < 4 || b.x > canvas.width - 4) {
+            if (b.x < 5 || b.x > ARENA_W - 5) {
                 if (b.bounces > 0) { b.vx = -b.vx; b.bounces--; spawnParticles(b.x, b.y, '#ffeb3b', 4); }
                 else destroyed = true;
             }
-            if (b.y < 4 || b.y > canvas.height - 4) {
+            if (b.y < 5 || b.y > ARENA_H - 5) {
                 if (b.bounces > 0) { b.vy = -b.vy; b.bounces--; spawnParticles(b.x, b.y, '#ffeb3b', 4); }
                 else destroyed = true;
             }
-
             if (destroyed) { state.bullets.splice(i, 1); continue; }
 
-            // Столкновение со стенами
+            // Стены
             for (let wIdx = state.walls.length - 1; wIdx >= 0; wIdx--) {
                 let w = state.walls[wIdx];
                 if (b.x + 4 > w.x && b.x - 4 < w.x + w.w && b.y + 4 > w.y && b.y - 4 < w.y + w.h) {
                     if (w.type === 1) {
-                        // Кирпичная стена разрушается
                         w.hp--;
-                        spawnParticles(b.x, b.y, '#d84315', 8);
+                        spawnParticles(b.x, b.y, '#d84315', 7);
                         if (w.hp <= 0) {
-                            spawnParticles(w.x + w.w/2, w.y + w.h/2, '#bf360c', 18);
+                            spawnParticles(w.x + w.w/2, w.y + w.h/2, '#bf360c', 16);
                             state.walls.splice(wIdx, 1);
                         }
                         destroyed = true;
                     } else {
-                        // Стальная стена дает рикошет
                         if (b.bounces > 0) {
                             if (prevX <= w.x || prevX >= w.x + w.w) b.vx = -b.vx;
                             else b.vy = -b.vy;
                             b.bounces--;
                             spawnParticles(b.x, b.y, '#00e5ff', 6);
                         } else {
-                            spawnParticles(b.x, b.y, '#fff', 5);
+                            spawnParticles(b.x, b.y, '#ffffff', 5);
                             destroyed = true;
                         }
                     }
                     break;
                 }
             }
-
             if (destroyed) { state.bullets.splice(i, 1); continue; }
 
-            // Проверка попадания в Танк 1
-            if (Math.hypot(b.x - state.p1.x, b.y - state.p1.y) < 20) {
-                if (b.owner !== 1 || b.bounces < 1) { // Своя пуля может ранить после рикошета!
-                    if (state.p1.shield <= 0) {
-                        state.p1.hp -= 25;
-                        spawnParticles(state.p1.x, state.p1.y, '#4CAF50', 12);
-                    } else {
-                        spawnParticles(b.x, b.y, '#00e5ff', 10);
-                    }
-                    state.bullets.splice(i, 1);
-                    if (state.p1.hp <= 0) {
-                        state.p2.score++;
-                        spawnParticles(state.p1.x, state.p1.y, '#ff5722', 35);
-                        resetRound();
-                        break;
-                    }
-                    continue;
-                }
-            }
+            // Попадания в танки
+            for (let tank of state.tanks) {
+                if (Math.hypot(b.x - tank.x, b.y - tank.y) < 20) {
+                    if (b.owner !== tank.id || b.bounces < 1) {
+                        if (tank.shield <= 0) {
+                            tank.hp -= 25;
+                            spawnParticles(tank.x, tank.y, tank.color, 10);
+                        } else {
+                            spawnParticles(b.x, b.y, '#00e5ff', 8);
+                        }
+                        state.bullets.splice(i, 1);
 
-            // Проверка попадания в Танк 2
-            if (Math.hypot(b.x - state.p2.x, b.y - state.p2.y) < 20) {
-                if (b.owner !== 2 || b.bounces < 1) {
-                    if (state.p2.shield <= 0) {
-                        state.p2.hp -= 25;
-                        spawnParticles(state.p2.x, state.p2.y, '#2196F3', 12);
-                    } else {
-                        spawnParticles(b.x, b.y, '#00e5ff', 10);
-                    }
-                    state.bullets.splice(i, 1);
-                    if (state.p2.hp <= 0) {
-                        state.p1.score++;
-                        spawnParticles(state.p2.x, state.p2.y, '#ff5722', 35);
-                        resetRound();
+                        if (tank.hp <= 0) {
+                            spawnParticles(tank.x, tank.y, '#ff5722', 30);
+                            const killer = state.tanks.find(t => t.id === b.owner);
+                            if (killer && killer.id !== tank.id) {
+                                killer.score++;
+                                if (killer.score >= 10) {
+                                    // Сброс карты при 10 фрагах
+                                    initMap();
+                                    state.tanks.forEach(t => t.score = 0);
+                                }
+                            }
+                            respawnTank(tank);
+                        }
                         break;
                     }
-                    continue;
                 }
             }
         }
 
         updateHUD();
-        if (conn && conn.open) {
+        if (!isSolo && conn && conn.open) {
             conn.send({ type: 'state', state: state });
         }
     }
 
-    function resetRound() {
-        state.p1.x = 80;  state.p1.y = 300; state.p1.angle = 0;       state.p1.hp = 100; state.p1.shield = 0; state.p1.speedBoost = 0;
-        state.p2.x = 720; state.p2.y = 300; state.p2.angle = Math.PI; state.p2.hp = 100; state.p2.shield = 0; state.p2.speedBoost = 0;
-        state.bullets = [];
-
-        // Если кто-то набрал 5 очков — перезапускаем всю карту
-        if (state.p1.score >= 5 || state.p2.score >= 5) {
-            initMap();
-            state.p1.score = 0;
-            state.p2.score = 0;
-        }
-    }
-
     function updateHUD() {
-        document.getElementById('name1').innerText = state.p1.name;
-        document.getElementById('score1').innerText = state.p1.score;
-        document.getElementById('name2').innerText = state.p2.name;
-        document.getElementById('score2').innerText = state.p2.score;
+        const hud = document.getElementById('hud');
+        hud.innerHTML = state.tanks.map(t =>
+            `<div class="score-badge" style="color:${t.color}; border-bottom: 2px solid ${t.color}">
+                ${t.name}: ${t.score}
+            </div>`
+        ).join('');
     }
 
-    // --- ОТРИСОВКА ГРАФИКИ ---
-    function drawTank(tank, color) {
-        ctx.save();
-        ctx.translate(tank.x, tank.y);
-        ctx.rotate(tank.angle);
+    // =========================================================
+    // --- 3D ГРАФИКА НА THREE.JS ---
+    // =========================================================
+    let scene, camera, renderer;
+    let tankMeshes = {};
+    let wallMeshes = [];
+    let bulletMeshes = [];
+    let powerupMeshes = [];
+    let particleMeshes = [];
+    let labelElements = {};
 
-        // Эффект ускорения
-        if (tank.speedBoost > 0) {
-            ctx.shadowColor = '#ffeb3b';
-            ctx.shadowBlur = 12;
-        }
+    function initThreeJS() {
+        const wrapper = document.getElementById('canvas-wrapper');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111318);
+        scene.fog = new THREE.FogExp2(0x111318, 0.0007);
 
-        // Гусеницы
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-19, -19, 38, 7);
-        ctx.fillRect(-19, 12, 38, 7);
+        camera = new THREE.PerspectiveCamera(46, 800 / 600, 10, 2500);
+        camera.position.set(400, 560, 740);
+        camera.lookAt(400, 0, 310);
 
-        // Корпус
-        ctx.fillStyle = color;
-        ctx.fillRect(-15, -13, 30, 26);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(-15, -13, 30, 26);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(800, 600);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Очищаем старый canvas если есть
+        const oldCanvas = wrapper.querySelector('canvas');
+        if (oldCanvas) oldCanvas.remove();
+        wrapper.insertBefore(renderer.domElement, document.getElementById('labels-container'));
+
+        // Освещение
+        const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+        scene.add(ambient);
+
+        const dirLight = new THREE.DirectionalLight(0xfff8e7, 0.85);
+        dirLight.position.set(250, 650, 450);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.near = 100;
+        dirLight.shadow.camera.far = 1500;
+        dirLight.shadow.camera.left = -500;
+        dirLight.shadow.camera.right = 500;
+        dirLight.shadow.camera.top = 450;
+        dirLight.shadow.camera.bottom = -450;
+        scene.add(dirLight);
+
+        // Пол арены
+        const floorGeo = new THREE.PlaneGeometry(ARENA_W, ARENA_H);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e2229, roughness: 0.9 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(ARENA_W / 2, 0, ARENA_H / 2);
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Сетка на полу
+        const grid = new THREE.GridHelper(ARENA_W, 20, 0x333942, 0x282c34);
+        grid.position.set(ARENA_W / 2, 0.2, ARENA_H / 2);
+        scene.add(grid);
+
+        // Бортики вокруг арены
+        const borderMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.6, metalness: 0.3 });
+        const bTop = new THREE.Mesh(new THREE.BoxGeometry(ARENA_W + 24, 28, 12), borderMat);
+        bTop.position.set(ARENA_W / 2, 14, -6);
+        const bBot = bTop.clone(); bBot.position.set(ARENA_W / 2, 14, ARENA_H + 6);
+        const bLeft = new THREE.Mesh(new THREE.BoxGeometry(12, 28, ARENA_H), borderMat);
+        bLeft.position.set(-6, 14, ARENA_H / 2);
+        const bRight = bLeft.clone(); bRight.position.set(ARENA_W + 6, 14, ARENA_H / 2);
+        scene.add(bTop, bBot, bLeft, bRight);
+    }
+
+    // Сборка 3D модели танка
+    function createTankMesh(colorHex) {
+        const group = new THREE.Group();
+
+        const trackMat = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.9 });
+        const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4, metalness: 0.2 });
+        const turretMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.5, metalness: 0.4 });
+        const gunMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, metalness: 0.7, roughness: 0.3 });
+
+        // Левая и правая гусеницы
+        const trackGeo = new THREE.BoxGeometry(38, 10, 8);
+        const leftTrack = new THREE.Mesh(trackGeo, trackMat);
+        leftTrack.position.set(0, 5, -15);
+        leftTrack.castShadow = true;
+        const rightTrack = new THREE.Mesh(trackGeo, trackMat);
+        rightTrack.position.set(0, 5, 15);
+        rightTrack.castShadow = true;
+        group.add(leftTrack, rightTrack);
+
+        // Корпус танка
+        const bodyGeo = new THREE.BoxGeometry(32, 11, 24);
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.set(0, 9, 0);
+        body.castShadow = true;
+        group.add(body);
 
         // Башня
-        ctx.fillStyle = '#222';
-        ctx.beginPath();
-        ctx.arc(0, 0, 9, 0, Math.PI * 2);
-        ctx.fill();
+        const turretGeo = new THREE.CylinderGeometry(10, 12, 9, 16);
+        const turret = new THREE.Mesh(turretGeo, turretMat);
+        turret.position.set(-2, 18, 0);
+        turret.castShadow = true;
+        group.add(turret);
 
-        // Ствол
-        ctx.fillStyle = '#ccc';
-        ctx.fillRect(0, -3, 24, 6);
-        ctx.restore();
+        // Ствол пушки
+        const gunGeo = new THREE.CylinderGeometry(2.6, 2.6, 26, 12);
+        gunGeo.rotateZ(Math.PI / 2);
+        const gun = new THREE.Mesh(gunGeo, gunMat);
+        gun.position.set(12, 18, 0);
+        gun.castShadow = true;
+        group.add(gun);
 
-        // Энергетический щит
-        if (tank.shield > 0) {
-            ctx.save();
-            ctx.strokeStyle = '#00e5ff';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.arc(tank.x, tank.y, 26 + Math.sin(Date.now() * 0.02) * 2, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
-            ctx.fill();
-            ctx.restore();
-        }
+        // Сфера энергетического щита
+        const shieldGeo = new THREE.SphereGeometry(27, 18, 18);
+        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.28, wireframe: true });
+        const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+        shieldMesh.position.set(0, 14, 0);
+        shieldMesh.visible = false;
+        group.add(shieldMesh);
+        group.userData.shieldMesh = shieldMesh;
 
-        // Имя игрока над танком
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(tank.name, tank.x, tank.y - 38);
-
-        // Полоска HP
-        ctx.fillStyle = '#333';
-        ctx.fillRect(tank.x - 20, tank.y - 32, 40, 5);
-        ctx.fillStyle = tank.hp > 50 ? '#4CAF50' : (tank.hp > 25 ? '#ff9800' : '#f44336');
-        ctx.fillRect(tank.x - 20, tank.y - 32, (tank.hp / 100) * 40, 5);
+        scene.add(group);
+        return group;
     }
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Фоновая сетка
-        ctx.strokeStyle = '#242424';
-        ctx.lineWidth = 1;
-        for (let x = 0; x < canvas.width; x += 40) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    // Обновление 3D-координат плавающих имен и полосок HP
+    function updateTankLabel(tank, mesh) {
+        const container = document.getElementById('labels-container');
+        let el = labelElements[tank.id];
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'tank-label';
+            el.innerHTML = `<div class="name"></div><div class="hp-bg"><div class="hp-fill"></div></div>`;
+            container.appendChild(el);
+            labelElements[tank.id] = el;
         }
-        for (let y = 0; y < canvas.height; y += 40) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-        }
 
-        // Отрисовка стен
-        for (let w of state.walls) {
-            if (w.type === 1) {
-                // Кирпич (меняет цвет от повреждений)
-                ctx.fillStyle = w.hp === 3 ? '#b7410e' : (w.hp === 2 ? '#8d3209' : '#5e2106');
-                ctx.fillRect(w.x, w.y, w.w, w.h);
-                ctx.strokeStyle = '#3a1504';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(w.x, w.y, w.w, w.h);
-            } else {
-                // Стальная стена
-                ctx.fillStyle = '#607d8b';
-                ctx.fillRect(w.x, w.y, w.w, w.h);
-                ctx.strokeStyle = '#90a4ae';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(w.x + 3, w.y + 3, w.w - 6, w.h - 6);
+        el.querySelector('.name').innerText = tank.name;
+        const fill = el.querySelector('.hp-fill');
+        fill.style.width = Math.max(0, tank.hp) + '%';
+        fill.style.background = tank.hp > 50 ? '#4CAF50' : (tank.hp > 25 ? '#ff9800' : '#f44336');
+
+        // Проекция 3D точки над танком в 2D экранные координаты
+        const pos = new THREE.Vector3(tank.x, 38, tank.y);
+        pos.project(camera);
+
+        const x = (pos.x * 0.5 + 0.5) * container.clientWidth;
+        const y = (-(pos.y * 0.5) + 0.5) * container.clientHeight;
+
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+    }
+
+    function render3D() {
+        if (!scene) return;
+
+        // 1. Синхронизация Танков
+        const activeIds = new Set(state.tanks.map(t => t.id));
+        for (let id in tankMeshes) {
+            if (!activeIds.has(id)) {
+                scene.remove(tankMeshes[id]);
+                delete tankMeshes[id];
+                if (labelElements[id]) { labelElements[id].remove(); delete labelElements[id]; }
             }
         }
 
-        // Отрисовка бонусов
-        for (let p of state.powerups) {
-            ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.beginPath();
-            ctx.arc(0, 0, 13, 0, Math.PI * 2);
-            if (p.type === 'heal') { ctx.fillStyle = '#4CAF50'; }
-            if (p.type === 'shield') { ctx.fillStyle = '#00bcd4'; }
-            if (p.type === 'speed') { ctx.fillStyle = '#ffc107'; }
-            ctx.fill();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#fff';
-            ctx.stroke();
+        for (let tank of state.tanks) {
+            let mesh = tankMeshes[tank.id];
+            if (!mesh) {
+                mesh = createTankMesh(tank.color);
+                tankMeshes[tank.id] = mesh;
+            }
+            mesh.position.set(tank.x, 0, tank.y);
+            mesh.rotation.y = -tank.angle; // Коррекция угла для 3D оси Y
 
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            const symbol = p.type === 'heal' ? '+' : (p.type === 'shield' ? 'S' : '⚡');
-            ctx.fillText(symbol, 0, 1);
-            ctx.restore();
+            // Щит
+            mesh.userData.shieldMesh.visible = tank.shield > 0;
+            if (tank.shield > 0) {
+                mesh.userData.shieldMesh.rotation.y += 0.05;
+            }
+
+            updateTankLabel(tank, mesh);
+
+            // Плавное слежение камеры за своим танком
+            if (tank.id === myTankId) {
+                const targetCamX = 400 + (tank.x - 400) * 0.22;
+                const targetCamZ = 730 + (tank.y - 300) * 0.22;
+                camera.position.x += (targetCamX - camera.position.x) * 0.08;
+                camera.position.z += (targetCamZ - camera.position.z) * 0.08;
+                camera.lookAt(400 + (tank.x - 400) * 0.1, 0, 300 + (tank.y - 300) * 0.1);
+            }
         }
 
-        // Танки
-        drawTank(state.p1, '#4CAF50');
-        drawTank(state.p2, '#2196F3');
-
-        // Пули
-        for (let b of state.bullets) {
-            ctx.fillStyle = b.bounces > 0 ? '#ffeb3b' : '#ff5722';
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-            ctx.fill();
+        // 2. Синхронизация Стен
+        while (wallMeshes.length > state.walls.length) {
+            scene.remove(wallMeshes.pop());
+        }
+        while (wallMeshes.length < state.walls.length) {
+            const m = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.MeshStandardMaterial({ roughness: 0.7 })
+            );
+            m.castShadow = true;
+            m.receiveShadow = true;
+            scene.add(m);
+            wallMeshes.push(m);
+        }
+        for (let i = 0; i < state.walls.length; i++) {
+            const w = state.walls[i];
+            const m = wallMeshes[i];
+            const height = w.type === 2 ? 34 : (12 + w.hp * 6); // Кирпичи проседают при разрушении
+            m.scale.set(w.w, height, w.h);
+            m.position.set(w.x + w.w / 2, height / 2, w.y + w.h / 2);
+            if (w.type === 2) {
+                m.material.color.setHex(0x607d8b);
+                m.material.metalness = 0.5;
+            } else {
+                m.material.metalness = 0.1;
+                m.material.color.setHex(w.hp === 3 ? 0xb7410e : (w.hp === 2 ? 0x8d3209 : 0x5e2106));
+            }
         }
 
-        // Частицы взрывов
-        for (let pt of state.particles) {
-            ctx.fillStyle = pt.color;
-            ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+        // 3. Синхронизация Бонусов (вращающиеся 3D кристаллы)
+        while (powerupMeshes.length > state.powerups.length) {
+            scene.remove(powerupMeshes.pop());
         }
+        while (powerupMeshes.length < state.powerups.length) {
+            const m = new THREE.Mesh(
+                new THREE.OctahedronGeometry(12, 0),
+                new THREE.MeshStandardMaterial({ metalness: 0.3, roughness: 0.2 })
+            );
+            m.castShadow = true;
+            scene.add(m);
+            powerupMeshes.push(m);
+        }
+        for (let i = 0; i < state.powerups.length; i++) {
+            const p = state.powerups[i];
+            const m = powerupMeshes[i];
+            m.position.set(p.x, 14 + Math.sin(Date.now() * 0.006 + i) * 4, p.y);
+            m.rotation.y += 0.04;
+            m.rotation.x += 0.02;
+            const col = p.type === 'heal' ? 0x4CAF50 : (p.type === 'shield' ? 0x00bcd4 : 0xffc107);
+            m.material.color.setHex(col);
+            m.material.emissive.setHex(col);
+            m.material.emissiveIntensity = 0.35;
+        }
+
+        // 4. Синхронизация Пуль
+        while (bulletMeshes.length > state.bullets.length) {
+            scene.remove(bulletMeshes.pop());
+        }
+        while (bulletMeshes.length < state.bullets.length) {
+            const m = new THREE.Mesh(
+                new THREE.SphereGeometry(4.5, 10, 10),
+                new THREE.MeshBasicMaterial({ color: 0xffeb3b })
+            );
+            scene.add(m);
+            bulletMeshes.push(m);
+        }
+        for (let i = 0; i < state.bullets.length; i++) {
+            const b = state.bullets[i];
+            const m = bulletMeshes[i];
+            m.position.set(b.x, 16, b.y);
+            m.material.color.setHex(b.bounces > 0 ? 0xffeb3b : 0xff5722);
+        }
+
+        // 5. 3D Частицы взрывов
+        while (particleMeshes.length > state.particles.length) {
+            scene.remove(particleMeshes.pop());
+        }
+        while (particleMeshes.length < state.particles.length) {
+            const m = new THREE.Mesh(
+                new THREE.BoxGeometry(5, 5, 5),
+                new THREE.MeshBasicMaterial({ color: 0xff5722 })
+            );
+            scene.add(m);
+            particleMeshes.push(m);
+        }
+        for (let i = 0; i < state.particles.length; i++) {
+            const pt = state.particles[i];
+            const m = particleMeshes[i];
+            m.position.set(pt.x, 8 + (pt.life * 0.6), pt.y);
+            m.rotation.x += 0.1;
+            m.rotation.y += 0.1;
+            const scale = Math.max(0.2, pt.life / 20);
+            m.scale.set(scale, scale, scale);
+            m.material.color.set(pt.color);
+        }
+
+        renderer.render(scene, camera);
     }
 
     function gameLoop() {
         if (!gameRunning) return;
         if (isHost) updatePhysics();
-        draw();
+        render3D();
         requestAnimationFrame(gameLoop);
     }
 </script>
